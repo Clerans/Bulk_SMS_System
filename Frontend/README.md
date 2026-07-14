@@ -1,7 +1,7 @@
 
-  # Enterprise SMS Campaign Management
+  # Bulk SMS Management System
 
-  This is a code bundle for Enterprise SMS Campaign Management. The original project is available at https://www.figma.com/design/toFVZDldi4Ktt6pr4mlobP/Enterprise-SMS-Campaign-Management.
+  This is a code bundle for Bulk SMS Management System. The original project is available at https://www.figma.com/design/I4Yvl5WCfSM69W0NyRzkJf/Bulk-SMS-Management-System.
 
   ## Running the code
 
