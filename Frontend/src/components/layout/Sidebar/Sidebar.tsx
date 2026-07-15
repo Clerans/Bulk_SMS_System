@@ -35,18 +35,22 @@ export function Sidebar({ collapsed, onToggle, onLogout }: SidebarProps) {
         collapsed ? "w-[72px]" : "w-[240px]"
       )}
     >
-      {/* Logo */}
       <div
         className={cn(
-          "flex items-center gap-3 px-4 py-5 border-b border-sidebar-border flex-shrink-0",
+          "flex items-center gap-3 px-4 h-[72px] border-b border-sidebar-border flex-shrink-0",
           collapsed && "justify-center px-0"
         )}
       >
-        <div className="w-8 h-8 rounded-lg bg-brand-accent flex items-center justify-center flex-shrink-0">
-          <MessageSquare className="w-4 h-4 text-primary" />
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 animate-bounce-soft"
+          style={{ background: "#004953" }}
+        >
+          <MessageSquare className="w-4 h-4 animate-pulse" style={{ color: "#5eead4" }} />
         </div>
         {!collapsed && (
-          <span className="font-bold text-base text-sidebar-foreground">SMSBlast</span>
+          <span className="font-extrabold text-base tracking-wide" style={{ color: "#ffffff" }}>
+            SMS<span style={{ color: "#2dd4bf" }}>Blast</span>
+          </span>
         )}
       </div>
 
@@ -62,16 +66,14 @@ export function Sidebar({ collapsed, onToggle, onLogout }: SidebarProps) {
               aria-label={label}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors",
+                "relative w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all rounded-xl border-l-4 border-y-0 border-r-0 border-l-transparent",
                 collapsed && "justify-center px-0",
                 active
-                  ? "bg-sidebar-primary/15 text-sidebar-primary"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  ? "font-semibold"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               )}
+              style={active ? { background: "rgba(0,73,83,0.55)", color: "#5eead4", borderColor: "#5eead4" } : {}}
             >
-              {active && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-sidebar-primary rounded-r-full" />
-              )}
               <Icon className="w-5 h-5 flex-shrink-0" />
               {!collapsed && <span>{label}</span>}
             </button>
@@ -85,16 +87,14 @@ export function Sidebar({ collapsed, onToggle, onLogout }: SidebarProps) {
             aria-label="Settings"
             aria-current={isActive("/settings") ? "page" : undefined}
             className={cn(
-              "relative w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors",
+              "relative w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all rounded-xl border-l-4 border-y-0 border-r-0 border-l-transparent",
               collapsed && "justify-center px-0",
               isActive("/settings")
-                ? "bg-sidebar-primary/15 text-sidebar-primary"
-                : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                ? "font-semibold"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             )}
+            style={isActive("/settings") ? { background: "rgba(0,73,83,0.55)", color: "#5eead4", borderColor: "#5eead4" } : {}}
           >
-            {isActive("/settings") && (
-              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-sidebar-primary rounded-r-full" />
-            )}
             <Settings className="w-5 h-5 flex-shrink-0" />
             {!collapsed && <span>Settings</span>}
           </button>

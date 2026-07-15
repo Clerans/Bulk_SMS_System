@@ -12,19 +12,41 @@ interface MetricCardProps {
 }
 
 export function MetricCard({ label, value, sub, trend, trendUp, icon: Icon, iconClass = "text-primary" }: MetricCardProps) {
+  const isFailed = label.toLowerCase() === "failed";
+  
   return (
-    <Card className="p-5 shadow-[0_8px_30px_rgba(0,73,83,0.04)] hover:shadow-[0_8px_30px_rgba(0,73,83,0.08)] hover:-translate-y-0.5 transition-all duration-300">
-      <div className="flex items-start justify-between mb-3">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <div className={cn("p-2 rounded-lg bg-primary/10")}>
-          <Icon className={cn("w-4 h-4", iconClass)} />
-        </div>
+    <Card 
+      className={cn(
+        "p-6 relative overflow-hidden rounded-2xl shadow-md border-t-4 transition-all hover:shadow-lg hover:-translate-y-0.5 duration-300",
+        isFailed ? "border-t-red-500 dark:border-t-red-500" : "border-t-primary"
+      )}
+    >
+      {/* Absolute top-right icon container */}
+      <div 
+        className={cn(
+          "absolute top-4 right-4 p-3 rounded-xl flex items-center justify-center transition-all",
+          isFailed 
+            ? "bg-red-500/10 text-red-500" 
+            : "bg-primary/10 text-primary dark:text-teal-400"
+        )}
+      >
+        <Icon className={cn("w-5 h-5", iconClass)} />
       </div>
-      <p className="text-2xl font-semibold text-foreground">{value}</p>
-      {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+
+      <div className="space-y-1">
+        <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{label}</p>
+        <h3 className="text-3xl font-extrabold text-slate-800 dark:text-white pt-1">{value}</h3>
+      </div>
+
       {trend && (
-        <p className={cn("text-xs font-medium mt-1", trendUp ? "text-green-600" : "text-destructive")}>
-          {trend}
+        <div className="mt-4 flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full w-max bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400">
+          <span>{trend}</span>
+        </div>
+      )}
+
+      {sub && !trend && (
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-4">
+          {sub}
         </p>
       )}
     </Card>
