@@ -13,6 +13,8 @@ import { TemplatesPage } from "../features/templates/pages/TemplatesPage";
 import { DeliveryReportsPage } from "../features/reports/pages/DeliveryReportsPage";
 import { SettingsPage } from "../features/settings/pages/SettingsPage";
 import { toast } from "sonner";
+import { websocketService } from "../services/websocket";
+import { useEffect } from "react";
 
 function ProtectedRoute({ isAuthenticated, children }: { isAuthenticated: boolean; children: React.ReactNode }) {
   if (!isAuthenticated) return <Navigate to="/login" replace />;
@@ -20,8 +22,32 @@ function ProtectedRoute({ isAuthenticated, children }: { isAuthenticated: boolea
 }
 
 export default function App() {
-  const { isAuthenticated, user, login, logout } = useAuth();
+  const { isAuthenticated, user, token, login, logout } = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
+
+  // Establish WebSocket connection when authenticated
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      websocketService.connect(token);
+    } else {
+      websocketService.disconnect();
+    }
+    return () => {
+      websocketService.disconnect();
+    };
+  }, [isAuthenticated, token]);
+
+  // Listen for auth expiration events from Axios interceptor
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      logout();
+      toast.error("Your session has expired. Please sign in again.");
+    };
+    window.addEventListener("sms_auth_expired", handleAuthExpired);
+    return () => {
+      window.removeEventListener("sms_auth_expired", handleAuthExpired);
+    };
+  }, [logout]);
 
   async function handleLogin(email: string, password: string) {
     await login(email, password);

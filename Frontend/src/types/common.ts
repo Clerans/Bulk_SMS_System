@@ -30,6 +30,7 @@ export interface User {
 export interface AuthState {
   user: User | null;
   token: string | null;
+  refresh_token: string | null;
   isAuthenticated: boolean;
 }
 
@@ -123,6 +124,11 @@ export interface AppSettings {
   defaultSenderId: string;
   defaultRoute: string;
   smsBalanceWarningThreshold: number;
+  smsBalance: number;
+  senderId?: string;
+  gateway?: string;
+  apiKey?: string;
+  apiSecret?: string;
 }
 
 // ─── SMS Utility Types ────────────────────────────────────────────────────────
@@ -173,6 +179,7 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   token: string;
+  refresh_token: string;
   user: User;
 }
 
