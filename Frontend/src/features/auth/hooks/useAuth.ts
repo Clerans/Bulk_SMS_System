@@ -9,7 +9,7 @@ function loadStoredAuth(): AuthState {
   } catch {
     // ignore
   }
-  return { user: null, token: null, isAuthenticated: false };
+  return { user: null, token: null, refresh_token: null, isAuthenticated: false };
 }
 
 export function useAuth() {
@@ -17,14 +17,14 @@ export function useAuth() {
 
   const login = useCallback(async (email: string, password: string): Promise<void> => {
     const res = await authService.login({ email, password });
-    const state: AuthState = { user: res.user, token: res.token, isAuthenticated: true };
+    const state: AuthState = { user: res.user, token: res.token, refresh_token: res.refresh_token, isAuthenticated: true };
     sessionStorage.setItem("sms_auth", JSON.stringify(state));
     setAuth(state);
   }, []);
 
   const logout = useCallback(() => {
     sessionStorage.removeItem("sms_auth");
-    setAuth({ user: null, token: null, isAuthenticated: false });
+    setAuth({ user: null, token: null, refresh_token: null, isAuthenticated: false });
   }, []);
 
   return { ...auth, login, logout };

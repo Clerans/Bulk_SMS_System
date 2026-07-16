@@ -63,7 +63,7 @@ export function DeliveryTrendChart({ data, days = 14 }: DeliveryTrendChartProps)
               <Line
                 type="monotone"
                 dataKey="Delivered"
-                stroke="#8EA58C"
+                stroke="var(--chart-1)"
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4 }}
@@ -71,7 +71,7 @@ export function DeliveryTrendChart({ data, days = 14 }: DeliveryTrendChartProps)
               <Line
                 type="monotone"
                 dataKey="Failed"
-                stroke="#D36B6B"
+                stroke="var(--chart-2)"
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4 }}
