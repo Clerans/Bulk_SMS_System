@@ -4,14 +4,11 @@ import { MOCK_REPORTS } from "../../../mocks/data";
 
 export const reportsService = {
   async getReports(): Promise<DeliveryReport[]> {
-    // In production:
-    // const res = await axiosInstance.get<DeliveryReport[]>("/delivery-reports");
-    // return res.data;
-    return MOCK_REPORTS;
+    const res = await axiosInstance.get<DeliveryReport[]>("/delivery-reports");
+    return res.data;
   },
 
   async exportCsv(): Promise<void> {
-    // In production:
-    // window.open(`${axiosInstance.defaults.baseURL}/delivery-reports?export=csv`);
+    window.open(`${axiosInstance.defaults.baseURL}/delivery-reports/export`);
   },
 };

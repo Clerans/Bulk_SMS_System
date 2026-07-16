@@ -4,16 +4,12 @@ import { MOCK_SETTINGS } from "../../../mocks/data";
 
 export const settingsService = {
   async getSettings(): Promise<AppSettings> {
-    // In production:
-    // const res = await axiosInstance.get<AppSettings>("/settings");
-    // return res.data;
-    return MOCK_SETTINGS;
+    const res = await axiosInstance.get<AppSettings>("/settings");
+    return res.data;
   },
 
   async saveSettings(settings: AppSettings): Promise<AppSettings> {
-    // In production:
-    // const res = await axiosInstance.patch<AppSettings>("/settings", settings);
-    // return res.data;
-    return settings;
+    const res = await axiosInstance.put<AppSettings>("/settings", settings);
+    return res.data;
   },
 };

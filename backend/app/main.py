@@ -20,6 +20,41 @@ app = FastAPI(
 # Register exception handlers
 register_exception_handlers(app)
 
+# Rate Limiter Setup
+from slowapi.errors import RateLimitExceeded
+from app.dependencies.rate_limiter import limiter
+from fastapi.responses import JSONResponse
+
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={
+            "success": False,
+            "message": "Too many requests. Please try again later.",
+            "data": None,
+            "errors": [{"message": "Rate limit exceeded"}]
+        }
+    )
+
+# Include API Routers
+from app.api import auth, users, contacts, groups, templates, campaigns, dashboard, reports, sms
+from app.api import settings as settings_router
+
+for prefix in [settings.API_V1_STR, "/api"]:
+    app.include_router(auth.router, prefix=prefix)
+    app.include_router(users.router, prefix=prefix)
+    app.include_router(contacts.router, prefix=prefix)
+    app.include_router(groups.router, prefix=prefix)
+    app.include_router(templates.router, prefix=prefix)
+    app.include_router(campaigns.router, prefix=prefix)
+    app.include_router(dashboard.router, prefix=prefix)
+    app.include_router(reports.router, prefix=prefix)
+    app.include_router(sms.router, prefix=prefix)
+    app.include_router(settings_router.router, prefix=prefix)
+
 # CORS Middleware Setup
 if settings.BACKEND_CORS_ORIGINS:
     app.add_middleware(

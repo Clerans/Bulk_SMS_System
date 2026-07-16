@@ -1,10 +1,26 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { Contact } from "../../../types/common";
 import { contactsService } from "../services/contacts.service";
-import { MOCK_CONTACTS } from "../../../mocks/data";
 
 export function useContacts() {
-  const [contacts, setContacts] = useState<Contact[]>(MOCK_CONTACTS);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchContacts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await contactsService.getContacts();
+      setContacts(data);
+    } catch (err) {
+      console.error("Failed to fetch contacts", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchContacts();
+  }, [fetchContacts]);
 
   const addContact = useCallback(async (data: Omit<Contact, "id" | "status" | "lastCampaign">) => {
     const newContact = await contactsService.createContact(data);
@@ -19,7 +35,9 @@ export function useContacts() {
 
   return {
     contacts,
+    loading,
     addContact,
     deleteContact,
+    refreshContacts: fetchContacts,
   };
 }

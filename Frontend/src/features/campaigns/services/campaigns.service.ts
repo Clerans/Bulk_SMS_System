@@ -4,28 +4,20 @@ import { MOCK_CAMPAIGNS } from "../../../mocks/data";
 
 export const campaignsService = {
   async getCampaigns(): Promise<Campaign[]> {
-    // In production:
-    // const res = await axiosInstance.get<Campaign[]>("/campaigns");
-    // return res.data;
-    return MOCK_CAMPAIGNS;
+    const res = await axiosInstance.get<Campaign[]>("/campaigns");
+    return res.data;
   },
 
   async getCampaign(id: string): Promise<Campaign | undefined> {
-    // In production:
-    // const res = await axiosInstance.get<Campaign>(`/campaigns/${id}`);
-    // return res.data;
-    return MOCK_CAMPAIGNS.find((c) => c.id === id);
+    const res = await axiosInstance.get<Campaign>(`/campaigns/${id}`);
+    return res.data;
   },
 
   async retryFailed(id: string): Promise<void> {
-    // In production:
-    // await axiosInstance.post(`/campaigns/${id}/retry-failed`);
-    await new Promise<void>((r) => setTimeout(r, 500));
+    await axiosInstance.post(`/campaigns/${id}/retry-failed`);
   },
 
   async createCampaign(data: any): Promise<void> {
-    // In production:
-    // await axiosInstance.post("/campaigns", data);
-    await new Promise<void>((r) => setTimeout(r, 1200));
+    await axiosInstance.post("/campaigns", data);
   },
 };

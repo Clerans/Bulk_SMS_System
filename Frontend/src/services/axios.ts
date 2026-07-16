@@ -29,9 +29,18 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Handle errors cleanly
+// Response Interceptor: Handle errors cleanly & unpack standard JSON envelope
 axiosInstance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.data && typeof response.data === "object" && response.data.success !== undefined) {
+      if (response.data.success) {
+        response.data = response.data.data;
+      } else {
+        return Promise.reject(new Error(response.data.message || "Request failed"));
+      }
+    }
+    return response;
+  },
   (error) => {
     const message = error.response?.data?.message ?? error.message ?? "Request failed";
     return Promise.reject(new Error(message));
