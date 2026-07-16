@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Trash2, Users } from "lucide-react";
+import { Plus, Trash2, Users, FolderPlus } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "../../../components/ui/PageHeader";
 import { Button } from "../../../components/ui/Button";
@@ -14,19 +14,29 @@ import { CONTACT_STATUS_MAP } from "../../../lib/utils";
 import { formatNumber } from "../../../utils/format";
 import { normalizePhone } from "../../../utils/phone";
 import { useContacts } from "../hooks/useContacts";
-import { MOCK_CONTACT_GROUPS } from "../../../mocks/data";
-import type { Contact, ContactStatus } from "../../../types/common";
+import { contactsService } from "../services/contacts.service";
+import type { Contact, ContactStatus, ContactGroup } from "../../../types/common";
+import { useEffect } from "react";
 
 export function ContactsPage() {
   const { contacts, addContact, deleteContact } = useContacts();
+  const [groups, setGroups] = useState<ContactGroup[]>([]);
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatusFilter] = useState<ContactStatus | "ALL">("ALL");
   const [groupFilter, setGroupFilter]   = useState("ALL");
   const [addOpen, setAddOpen]       = useState(false);
+  const [addGroupOpen, setAddGroupOpen] = useState(false);
   const [deleteId, setDeleteId]     = useState<string | null>(null);
 
   const [form, setForm] = useState({ name: "", phone: "", group: "", country: "LK" });
   const [formError, setFormError] = useState("");
+
+  const [groupForm, setGroupForm] = useState({ name: "", description: "" });
+  const [groupFormError, setGroupFormError] = useState("");
+
+  useEffect(() => {
+    contactsService.getContactGroups().then(setGroups);
+  }, [contacts]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -72,6 +82,28 @@ export function ContactsPage() {
     }
   }
 
+  async function handleAddGroup() {
+    if (!groupForm.name.trim()) {
+      setGroupFormError("Group name is required.");
+      return;
+    }
+    
+    try {
+      await contactsService.createContactGroup({
+        name: groupForm.name.trim(),
+        description: groupForm.description.trim() || undefined,
+      });
+      setAddGroupOpen(false);
+      setGroupForm({ name: "", description: "" });
+      setGroupFormError("");
+      toast.success("Group created successfully.");
+      const updatedGroups = await contactsService.getContactGroups();
+      setGroups(updatedGroups);
+    } catch (err: unknown) {
+      setGroupFormError(err instanceof Error ? err.message : "Failed to create group.");
+    }
+  }
+
   const deletingContact = contacts.find((c) => c.id === deleteId);
 
 
@@ -81,9 +113,14 @@ export function ContactsPage() {
         title="Contacts"
         description="Manage recipients and contact groups."
         actions={
-          <Button onClick={() => setAddOpen(true)}>
-            <Plus className="w-4 h-4" />Add Contact
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setAddGroupOpen(true)}>
+              <FolderPlus className="w-4 h-4" />Create Group
+            </Button>
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus className="w-4 h-4" />Add Contact
+            </Button>
+          </div>
         }
       />
 
@@ -101,7 +138,7 @@ export function ContactsPage() {
             className="px-3 py-2 rounded-lg border border-border bg-input-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           >
             <option value="ALL">All Groups</option>
-            {MOCK_CONTACT_GROUPS.map((g) => (
+            {groups.map((g) => (
               <option key={g.id} value={g.name}>{g.name}</option>
             ))}
           </select>
@@ -170,7 +207,7 @@ export function ContactsPage() {
       <div>
         <h2 className="text-base font-semibold text-foreground mb-3">Contact Groups</h2>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {MOCK_CONTACT_GROUPS.map((g) => (
+          {groups.map((g) => (
             <Card key={g.id} className="p-4">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
                 <Users className="w-4 h-4 text-primary" />
@@ -209,7 +246,7 @@ export function ContactsPage() {
                 onChange={(e) => setForm((p) => ({ ...p, group: e.target.value }))}
               >
                 <option value="">— No group —</option>
-                {MOCK_CONTACT_GROUPS.map((g) => (
+                {groups.map((g) => (
                   <option key={g.id} value={g.name}>{g.name}</option>
                 ))}
               </Select>
@@ -239,6 +276,36 @@ export function ContactsPage() {
         onConfirm={() => deleteId && handleDelete(deleteId)}
         onCancel={() => setDeleteId(null)}
       />
+
+      {/* Create Group Modal */}
+      {addGroupOpen && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-200">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Create Contact Group</h3>
+            <div className="space-y-4">
+              <Input
+                label="Group Name"
+                value={groupForm.name}
+                onChange={(e) => setGroupForm((p) => ({ ...p, name: e.target.value }))}
+                placeholder="e.g. Premium Customers"
+              />
+              <Input
+                label="Description (optional)"
+                value={groupForm.description}
+                onChange={(e) => setGroupForm((p) => ({ ...p, description: e.target.value }))}
+                placeholder="Brief details about this group"
+              />
+              {groupFormError && (
+                <p className="text-xs text-destructive">{groupFormError}</p>
+              )}
+            </div>
+            <div className="flex gap-3 justify-end mt-6">
+              <Button variant="outline" onClick={() => { setAddGroupOpen(false); setGroupFormError(""); }}>Cancel</Button>
+              <Button onClick={handleAddGroup}><FolderPlus className="w-4 h-4" />Create Group</Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

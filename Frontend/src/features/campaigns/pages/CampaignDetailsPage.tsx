@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { format, parseISO } from "date-fns";
 import { ArrowLeft, CheckCircle2, XCircle, Users, Zap, RotateCcw, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "../../../components/ui/PageHeader";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
@@ -11,16 +12,17 @@ import { Tabs } from "../../../components/ui/Tabs";
 import { ProgressBar } from "../../../components/ui/Progress";
 import { CAMPAIGN_STATUS_MAP, DELIVERY_STATUS_MAP } from "../../../lib/utils";
 import { formatNumber, pct } from "../../../utils/format";
-import { MOCK_REPORTS } from "../../../mocks/data";
 import { campaignsService } from "../services/campaigns.service";
-import { toast } from "sonner";
-import type { Campaign } from "../../../types/common";
+import { reportsService } from "../../reports/services/reports.service";
+import { websocketService } from "../../../services/websocket";
+import type { Campaign, DeliveryReport } from "../../../types/common";
 
 export function CampaignDetailsPage() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
   const [tab, setTab] = useState("overview");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [logs, setLogs] = useState<DeliveryReport[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,10 +31,67 @@ export function CampaignDetailsPage() {
         setCampaign(res ?? null);
         setLoading(false);
       });
+      reportsService.getReports({ campaignId }).then((res) => {
+        setLogs(res);
+      });
     }
   }, [campaignId]);
 
-  const logs = MOCK_REPORTS.filter((r) => r.campaignName === campaign?.name);
+  useEffect(() => {
+    if (!campaignId) return;
+
+    const unsubsProgress = websocketService.on("campaign_progress", (data) => {
+      if (data.campaignId === campaignId) {
+        setCampaign((prev) => {
+          if (!prev) return prev;
+          const progress = data.progress || 0;
+          const status = progress >= 100 ? "COMPLETED" : "PROCESSING";
+          const deliveredCount = Math.round((prev.recipientCount * progress) / 100);
+          return {
+            ...prev,
+            status,
+            deliveredCount,
+            failedCount: prev.recipientCount - prev.pendingCount - deliveredCount,
+          };
+        });
+      }
+    });
+
+    const unsubsSms = websocketService.on("sms_status", (data) => {
+      setLogs((prev) => {
+        const exists = prev.some((l) => l.phone === data.phone);
+        if (exists) {
+          return prev.map((l) => {
+            if (l.phone === data.phone) {
+              return {
+                ...l,
+                status: data.status,
+                deliveredAt: data.status === "DELIVERED" ? new Date().toISOString() : l.deliveredAt,
+                failureReason: data.status === "FAILED" ? (data.reason || "Dispatch failed") : l.failureReason,
+              };
+            }
+            return l;
+          });
+        } else {
+          const newLog: DeliveryReport = {
+            id: Math.random().toString(),
+            campaignName: campaign?.name || "This Campaign",
+            phone: data.phone,
+            status: data.status,
+            sentAt: new Date().toISOString(),
+            deliveredAt: data.status === "DELIVERED" ? new Date().toISOString() : null,
+            failureReason: data.status === "FAILED" ? (data.reason || "Dispatch failed") : null,
+          };
+          return [newLog, ...prev];
+        }
+      });
+    });
+
+    return () => {
+      unsubsProgress();
+      unsubsSms();
+    };
+  }, [campaignId, campaign?.name]);
 
   if (loading) {
     return (
@@ -70,6 +129,7 @@ export function CampaignDetailsPage() {
   const canRetry = campaign.status === "PARTIALLY_FAILED" || campaign.status === "FAILED";
 
   async function handleRetryFailed() {
+    if (!campaign) return;
     try {
       await campaignsService.retryFailed(campaign.id);
       toast.success("Retry queued. Failed messages will be re-sent shortly.");

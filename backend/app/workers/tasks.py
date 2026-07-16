@@ -14,6 +14,14 @@ from app.repositories.setting import setting_repository
 from app.services.sms_provider import MockSMSProvider, TwilioSMSProvider
 from app.workers.celery_app import celery_app
 
+# Import WebSocket event publisher utilities
+from app.websocket.events import (
+    broadcast_campaign_progress,
+    broadcast_sms_status,
+    broadcast_dashboard_update,
+    broadcast_notification
+)
+
 def resolve_template(message_template: str, contact: Contact) -> str:
     """
     Drives variable merges. E.g., 'Hi {name}' -> 'Hi Priya'
@@ -81,12 +89,20 @@ async def run_process_campaign(campaign_id: str) -> None:
         campaign.sent_at = datetime.now(timezone.utc)
         await db.commit()
 
+        # Broadcast start events
+        broadcast_campaign_progress(str(campaign.id), 0)
+        broadcast_notification(f"Campaign '{campaign.name}' has started processing.", "info")
+
         delivered_inc = 0
         failed_inc = 0
 
         # 4. Dispatch Loop
+        total_recipients = len(pending_recipients)
+        processed_count = 0
+        
         for rec in pending_recipients:
             contact = rec.contact
+            processed_count += 1
             
             # Skip blacklisted/unsubscribed subscribers immediately
             if contact.status in [ContactStatus.BLACKLISTED, ContactStatus.UNSUBSCRIBED]:
@@ -105,6 +121,9 @@ async def run_process_campaign(campaign_id: str) -> None:
                     error_message=f"Contact is {contact.status.value}"
                 )
                 db.add(log_entry)
+                
+                # Broadcast sms status
+                broadcast_sms_status(contact.phone, "FAILED", str(campaign.id), f"Contact is {contact.status.value}")
                 continue
 
             # Merge templates
@@ -143,6 +162,9 @@ async def run_process_campaign(campaign_id: str) -> None:
                 )
                 db.add(log_entry)
                 
+                # Broadcast sms status
+                broadcast_sms_status(contact.phone, res["status"].value, str(campaign.id), res["error_message"])
+                
                 # Set last campaign on contact
                 contact.last_campaign = campaign.name
                 db.add(contact)
@@ -163,9 +185,21 @@ async def run_process_campaign(campaign_id: str) -> None:
                     error_message=str(ex)
                 )
                 db.add(log_entry)
+                
+                # Broadcast sms status
+                broadcast_sms_status(contact.phone, "FAILED", str(campaign.id), str(ex))
 
             # Commit periodically for real-time progress update
             await db.commit()
+            
+            # Broadcast campaign progress and dashboard stats
+            progress_pct = int((processed_count / total_recipients) * 100)
+            broadcast_campaign_progress(str(campaign.id), progress_pct)
+            broadcast_dashboard_update(
+                today=delivered_inc + failed_inc,
+                failed=failed_inc,
+                queued=total_recipients - processed_count
+            )
 
         # 5. Finalize Campaign Stats
         campaign.delivered_count = delivered_inc
@@ -182,6 +216,17 @@ async def run_process_campaign(campaign_id: str) -> None:
         db.add(campaign)
         db.add(app_settings)
         await db.commit()
+        
+        # Broadcast final completed events
+        broadcast_campaign_progress(str(campaign.id), 100)
+        
+        if campaign.status == CampaignStatus.COMPLETED:
+            broadcast_notification(f"Campaign '{campaign.name}' completed successfully.", "success")
+        elif campaign.status == CampaignStatus.PARTIALLY_FAILED:
+            broadcast_notification(f"Campaign '{campaign.name}' completed with some failures.", "warning")
+        else:
+            broadcast_notification(f"Campaign '{campaign.name}' failed completely.", "error")
+            
         logger.success(f"Finished processing campaign: {campaign_id}. Status: {campaign.status}")
 
 @celery_app.task(name="process_sms_campaign")
@@ -196,6 +241,8 @@ async def run_process_bulk_sms(phones: list[str], message: str, sender_id: str) 
     Runner for sending ad-hoc SMS in bulk to a list of phone numbers.
     """
     logger.info(f"Worker processing ad-hoc bulk SMS for {len(phones)} numbers.")
+    broadcast_notification(f"Ad-hoc Bulk SMS dispatch started for {len(phones)} recipients.", "info")
+    
     async with SessionLocal() as db:
         app_settings = await setting_repository.get_settings(db)
         
@@ -205,9 +252,16 @@ async def run_process_bulk_sms(phones: list[str], message: str, sender_id: str) 
         else:
             provider = MockSMSProvider()
 
+        processed_count = 0
+        total_phones = len(phones)
+        delivered_inc = 0
+        failed_inc = 0
+
         for phone in phones:
+            processed_count += 1
             if app_settings.sms_balance < 1:
                 logger.warning("Ad-hoc bulk SMS halted: Insufficient balance.")
+                broadcast_notification("Ad-hoc bulk SMS dispatch halted: Insufficient balance.", "error")
                 break
                 
             try:
@@ -219,6 +273,9 @@ async def run_process_bulk_sms(phones: list[str], message: str, sender_id: str) 
                 
                 if res["status"] == DeliveryStatus.DELIVERED:
                     app_settings.sms_balance -= 1
+                    delivered_inc += 1
+                else:
+                    failed_inc += 1
                     
                 log_entry = SMSLog(
                     phone=phone,
@@ -230,8 +287,12 @@ async def run_process_bulk_sms(phones: list[str], message: str, sender_id: str) 
                     delivered_at=res["sent_at"] if res["status"] == DeliveryStatus.DELIVERED else None
                 )
                 db.add(log_entry)
+                
+                # Broadcast sms status
+                broadcast_sms_status(phone, res["status"].value, None, res["error_message"])
             except Exception as e:
                 logger.error(f"Error in ad-hoc bulk send to {phone}: {str(e)}")
+                failed_inc += 1
                 log_entry = SMSLog(
                     phone=phone,
                     message=message,
@@ -240,9 +301,21 @@ async def run_process_bulk_sms(phones: list[str], message: str, sender_id: str) 
                     error_message=str(e)
                 )
                 db.add(log_entry)
+                
+                # Broadcast sms status
+                broadcast_sms_status(phone, "FAILED", None, str(e))
+                
+            # Broadcast dashboard update and stats live
+            broadcast_dashboard_update(
+                today=delivered_inc + failed_inc,
+                failed=failed_inc,
+                queued=total_phones - processed_count
+            )
 
         db.add(app_settings)
         await db.commit()
+        
+        broadcast_notification(f"Ad-hoc Bulk SMS dispatch complete. Sent: {delivered_inc}, Failed: {failed_inc}", "success")
         logger.success("Finished processing ad-hoc bulk SMS.")
 
 @celery_app.task(name="process_bulk_sms")

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { ArrowLeft, ArrowRight, Send, CalendarDays, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -12,9 +12,12 @@ import { RecipientSelector } from "../components/RecipientSelector";
 import { MessageComposer } from "../components/MessageComposer";
 import { calculateSmsSegments } from "../../../utils/sms";
 import { formatNumber } from "../../../utils/format";
-import { MOCK_CONTACT_GROUPS, MOCK_TEMPLATES, MOCK_SENDER_IDS, MOCK_ROUTES, MOCK_SUMMARY } from "../../../mocks/data";
+import { MOCK_SENDER_IDS, MOCK_ROUTES } from "../../../mocks/data";
 import { campaignsService } from "../../campaigns/services/campaigns.service";
-import type { CsvRecipient, RecipientSource } from "../../../types/common";
+import { contactsService } from "../../contacts/services/contacts.service";
+import { templatesService } from "../../templates/services/templates.service";
+import { settingsService } from "../../settings/services/settings.service";
+import type { CsvRecipient, RecipientSource, ContactGroup, SMSTemplate, AppSettings } from "../../../types/common";
 
 const STEPS = [
   { n: 1, label: "Recipients" },
@@ -42,13 +45,27 @@ export function SendSMSPage() {
   const [message, setMessage]                   = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
+  const [groups, setGroups] = useState<ContactGroup[]>([]);
+  const [templates, setTemplates] = useState<SMSTemplate[]>([]);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+
   // Step 3 — Campaign config
   const [campaignName, setCampaignName]     = useState("");
-  const [senderId, setSenderId]             = useState(MOCK_SENDER_IDS[0]?.value ?? "");
-  const [routeId, setRouteId]               = useState(MOCK_ROUTES[0]?.id ?? "");
+  const [senderId, setSenderId]             = useState("");
+  const [routeId, setRouteId]               = useState("");
   const [scheduleType, setScheduleType]     = useState<"NOW" | "SCHEDULED">("NOW");
   const [scheduledDate, setScheduledDate]   = useState("");
   const [scheduledTime, setScheduledTime]   = useState("");
+
+  useEffect(() => {
+    contactsService.getContactGroups().then(setGroups);
+    templatesService.getTemplates().then(setTemplates);
+    settingsService.getSettings().then((res) => {
+      setSettings(res);
+      setSenderId(res.defaultSenderId || "CAFECHAI");
+      setRouteId(res.defaultRoute || "route_02");
+    });
+  }, []);
 
   // Preview
   const [previewIndex, setPreviewIndex] = useState(0);
@@ -67,23 +84,23 @@ export function SendSMSPage() {
       return manualParsed.valid.map((phone, i) => ({ name: `Recipient ${i + 1}`, phone }));
     }
     // GROUPS — use stub contacts for preview (real data comes from backend)
-    const total = MOCK_CONTACT_GROUPS
+    const total = groups
       .filter((g) => selectedGroups.includes(g.id))
       .reduce((acc, g) => acc + g.contactCount, 0);
     return Array.from({ length: Math.min(total, 5) }, (_, i) => ({
       name: `Contact ${i + 1}`,
       phone: `+9477${String(i + 1).padStart(7, "0")}`,
     }));
-  }, [recipientTab, csvRows, manualParsed, selectedGroups]);
+  }, [recipientTab, csvRows, manualParsed, selectedGroups, groups]);
 
   const recipientCount = useMemo(() => {
     if (recipientTab === "CSV")    return csvStats.valid;
     if (recipientTab === "MANUAL") return manualParsed.valid.length;
-    return MOCK_CONTACT_GROUPS.filter((g) => selectedGroups.includes(g.id)).reduce((a, g) => a + g.contactCount, 0);
-  }, [recipientTab, csvStats, manualParsed, selectedGroups]);
+    return groups.filter((g) => selectedGroups.includes(g.id)).reduce((a, g) => a + g.contactCount, 0);
+  }, [recipientTab, csvStats, manualParsed, selectedGroups, groups]);
 
   const estimatedUnits = recipientCount * Math.max(1, smsMetrics.segmentCount);
-  const smsBalance = MOCK_SUMMARY.smsBalance;
+  const smsBalance = settings?.smsBalance ?? 50000;
   const insufficientBalance = recipientCount > 0 && estimatedUnits > smsBalance;
 
   const variables = csvHeaders.length > 0
@@ -115,6 +132,10 @@ export function SendSMSPage() {
         routeId,
         scheduleType,
         scheduledAt: scheduleType === "SCHEDULED" ? `${scheduledDate}T${scheduledTime}` : undefined,
+        recipientSource: recipientTab === "GROUPS" ? "GROUPS" : "MANUAL",
+        groupIds: recipientTab === "GROUPS" ? selectedGroups : undefined,
+        recipients: recipientTab === "GROUPS" ? undefined : recipients.map(r => ({ name: r.name || "Recipient", phone: r.phone })),
+        templateId: selectedTemplateId || undefined,
       });
       toast.success(scheduleType === "NOW" ? "Campaign sent successfully." : "Campaign scheduled successfully.");
       navigate("/campaigns");
@@ -181,7 +202,7 @@ export function SendSMSPage() {
                   csvFileName={csvFileName}
                   csvStats={csvStats}
                   onCsvLoad={(rows, headers, stats) => { setCsvRows(rows); setCsvHeaders(headers); setCsvStats(stats); setCsvFileName(rows.length > 0 ? "uploaded.csv" : ""); }}
-                  groups={MOCK_CONTACT_GROUPS}
+                  groups={groups}
                   selectedGroups={selectedGroups}
                   onGroupToggle={(id) => setSelectedGroups((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
                   manualInput={manualInput}
@@ -201,7 +222,7 @@ export function SendSMSPage() {
                 <MessageComposer
                   message={message}
                   onMessageChange={setMessage}
-                  templates={MOCK_TEMPLATES}
+                  templates={templates}
                   selectedTemplateId={selectedTemplateId}
                   onTemplateSelect={setSelectedTemplateId}
                   variables={variables}

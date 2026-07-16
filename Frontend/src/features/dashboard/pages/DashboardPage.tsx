@@ -8,26 +8,68 @@ import { DeliveryTrendChart } from "../components/DeliveryTrendChart";
 import { RecentCampaigns } from "../components/RecentCampaigns";
 import { formatNumber, formatPct } from "../../../utils/format";
 import { dashboardService } from "../services/dashboard.service";
-import { MOCK_CAMPAIGNS } from "../../../mocks/data";
-import type { DashboardSummary, DeliveryTrend } from "../../../types/common";
+import { campaignsService } from "../../campaigns/services/campaigns.service";
+import { websocketService } from "../../../services/websocket";
+import type { DashboardSummary, DeliveryTrend, Campaign } from "../../../types/common";
 
 export function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [trend, setTrend] = useState<DeliveryTrend[]>([]);
+  const [recentCampaigns, setRecentCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       dashboardService.getSummary(),
       dashboardService.getDeliveryTrend(),
-    ]).then(([sum, tr]) => {
+      campaignsService.getCampaigns(),
+    ]).then(([sum, tr, camps]) => {
       setSummary(sum);
       setTrend(tr);
+      setRecentCampaigns(camps.slice(0, 5));
       setLoading(false);
     });
   }, []);
 
-  const recentCampaigns = MOCK_CAMPAIGNS.slice(0, 5);
+  useEffect(() => {
+    // 1. Dashboard statistics update
+    const unsubsDashboard = websocketService.on("dashboard_update", (data) => {
+      setSummary((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          totalSent: data.today ?? prev.totalSent,
+          failed: data.failed ?? prev.failed,
+          delivered: (data.today ?? prev.totalSent) - (data.failed ?? prev.failed),
+        };
+      });
+    });
+
+    // 2. Campaign progress update (for the campaigns listed on the dashboard)
+    const unsubsProgress = websocketService.on("campaign_progress", (data) => {
+      setRecentCampaigns((prev) =>
+        prev.map((c) => {
+          if (c.id === data.campaignId) {
+            const progress = data.progress || 0;
+            const status = progress >= 100 ? "COMPLETED" : "PROCESSING";
+            const deliveredCount = Math.round((c.recipientCount * progress) / 100);
+            return {
+              ...c,
+              status,
+              deliveredCount,
+              failedCount: c.recipientCount - c.pendingCount - deliveredCount,
+            };
+          }
+          return c;
+        })
+      );
+    });
+
+    return () => {
+      unsubsDashboard();
+      unsubsProgress();
+    };
+  }, []);
 
   const deliveryRate = useMemo(
     () => (summary && summary.totalSent > 0 ? (summary.delivered / summary.totalSent) * 100 : 0),

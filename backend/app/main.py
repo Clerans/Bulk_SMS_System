@@ -42,6 +42,7 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 # Include API Routers
 from app.api import auth, users, contacts, groups, templates, campaigns, dashboard, reports, sms
 from app.api import settings as settings_router
+from app.websocket.routes import router as ws_router
 
 for prefix in [settings.API_V1_STR, "/api"]:
     app.include_router(auth.router, prefix=prefix)
@@ -54,6 +55,7 @@ for prefix in [settings.API_V1_STR, "/api"]:
     app.include_router(reports.router, prefix=prefix)
     app.include_router(sms.router, prefix=prefix)
     app.include_router(settings_router.router, prefix=prefix)
+    app.include_router(ws_router, prefix=prefix)
 
 # CORS Middleware Setup
 if settings.BACKEND_CORS_ORIGINS:
@@ -99,3 +101,13 @@ def health_check():
         },
         "errors": None
     }
+
+from app.websocket.manager import manager as ws_manager
+
+@app.on_event("startup")
+async def startup_event():
+    await ws_manager.start_redis_listener()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await ws_manager.stop_redis_listener()
