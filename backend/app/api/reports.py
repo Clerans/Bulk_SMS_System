@@ -23,10 +23,15 @@ async def get_logs_query(
     limit: int = 100,
     search: Optional[str] = None,
     status_filter: Optional[DeliveryStatus] = None,
-    campaign_id: Optional[uuid.UUID] = None
+    sender_id: Optional[str] = None,
+    route: Optional[str] = None,
+    campaign_id: Optional[uuid.UUID] = None,
+    phone: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
 ):
     """
-    Shared query logic for delivery logs.
+    Shared query logic for delivery logs with enterprise filtering support.
     """
     query = select(SMSLog).options(selectinload(SMSLog.campaign))
 
@@ -41,8 +46,31 @@ async def get_logs_query(
     if status_filter:
         query = query.where(SMSLog.status == status_filter)
         
+    if sender_id:
+        query = query.where(SMSLog.sender_id.ilike(f"%{sender_id}%"))
+        
+    if route:
+        query = query.where(SMSLog.route.ilike(f"%{route}%"))
+
     if campaign_id:
         query = query.where(SMSLog.campaign_id == campaign_id)
+
+    if phone:
+        query = query.where(SMSLog.phone.ilike(f"%{phone}%"))
+
+    if start_date:
+        try:
+            dt_start = datetime.fromisoformat(start_date)
+            query = query.where(SMSLog.created_at >= dt_start)
+        except Exception:
+            pass
+
+    if end_date:
+        try:
+            dt_end = datetime.fromisoformat(end_date)
+            query = query.where(SMSLog.created_at <= dt_end)
+        except Exception:
+            pass
 
     # Get total count
     count_query = select(func.count()).select_from(query.subquery())
@@ -64,11 +92,16 @@ async def get_delivery_reports(
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = Query(None),
     status_filter: Optional[DeliveryStatus] = Query(None, alias="status"),
+    sender_id: Optional[str] = Query(None, alias="senderId"),
+    route: Optional[str] = Query(None),
     campaign_id: Optional[uuid.UUID] = Query(None, alias="campaignId"),
+    phone: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None, alias="startDate"),
+    end_date: Optional[str] = Query(None, alias="endDate"),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Retrieve delivery reports list (compatible with React frontend).
+    Retrieve delivery reports list with enterprise filters (compatible with React frontend).
     """
     items, total = await get_logs_query(
         db,
@@ -76,12 +109,18 @@ async def get_delivery_reports(
         limit=limit,
         search=search,
         status_filter=status_filter,
-        campaign_id=campaign_id
+        sender_id=sender_id,
+        route=route,
+        campaign_id=campaign_id,
+        phone=phone,
+        start_date=start_date,
+        end_date=end_date
     )
     return {
         "success": True,
         "message": "Delivery logs retrieved",
         "data": [DeliveryReportResponse.model_validate(item) for item in items],
+        "total": total,
         "errors": None
     }
 

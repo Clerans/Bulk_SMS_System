@@ -1,20 +1,22 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { format, parseISO } from "date-fns";
-import { Plus, Eye, RotateCcw } from "lucide-react";
+import { Plus, Eye, RotateCcw, List } from "lucide-react";
 import { PageHeader } from "../../../components/ui/PageHeader";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { Card } from "../../../components/ui/Card";
+import { ProgressBar } from "../../../components/ui/Progress";
 import { EmptyState } from "../../../components/common/EmptyState";
 import { ConfirmDialog } from "../../../components/common/ConfirmDialog";
 import { SearchBar } from "../../../components/common/SearchBar";
+import { CampaignDetailsModal } from "../components/CampaignDetailsModal";
 import { CAMPAIGN_STATUS_MAP } from "../../../lib/utils";
 import { formatNumber, pct } from "../../../utils/format";
 import { campaignsService } from "../services/campaigns.service";
+import { websocketService } from "../../../services/websocket";
 import { toast } from "sonner";
 import type { Campaign, CampaignStatus } from "../../../types/common";
-import { List } from "lucide-react";
 
 export function CampaignsPage() {
   const navigate = useNavigate();
@@ -22,15 +24,57 @@ export function CampaignsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<CampaignStatus | "ALL">("ALL");
   const [retryId, setRetryId] = useState<string | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
 
   useEffect(() => {
     campaignsService.getCampaigns().then(setCampaigns);
   }, []);
 
+  // Real-time WebSocket progress updates
+  useEffect(() => {
+    const unsubs = websocketService.on("campaign_progress", (data) => {
+      setCampaigns((prev) =>
+        prev.map((c) => {
+          if (c.id === data.campaignId) {
+            const progressPct = data.progress ?? 0;
+            const sentCnt = data.sentCount ?? ((data.deliveredCount || 0) + (data.failedCount || 0));
+            const deliveredCnt = data.deliveredCount ?? c.deliveredCount;
+            const failedCnt = data.failedCount ?? c.failedCount;
+            const pendingCnt = data.pendingCount ?? Math.max(0, c.recipientCount - sentCnt);
+            const newStatus = data.status || (progressPct >= 100 ? "COMPLETED" : "PROCESSING");
+            return {
+              ...c,
+              status: newStatus as CampaignStatus,
+              deliveredCount: deliveredCnt,
+              failedCount: failedCnt,
+              pendingCount: pendingCnt,
+              progress: {
+                percentage: progressPct,
+                sent: sentCnt,
+                delivered: deliveredCnt,
+                failed: failedCnt,
+                pending: pendingCnt,
+              },
+            };
+          }
+          return c;
+        })
+      );
+    });
+
+    return () => {
+      unsubs();
+    };
+  }, []);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return campaigns.filter((c) => {
-      const matchSearch = c.name.toLowerCase().includes(q) || c.senderId.toLowerCase().includes(q);
+      const matchSearch =
+        c.name.toLowerCase().includes(q) ||
+        c.senderId.toLowerCase().includes(q) ||
+        (c.gateway || "").toLowerCase().includes(q) ||
+        (c.route || "").toLowerCase().includes(q);
       const matchStatus = statusFilter === "ALL" || c.status === statusFilter;
       return matchSearch && matchStatus;
     });
@@ -52,7 +96,7 @@ export function CampaignsPage() {
     <div>
       <PageHeader
         title="Campaigns"
-        description="View, monitor, and manage SMS campaigns."
+        description="View, monitor, and manage enterprise SMS campaigns in real-time."
         actions={
           <Button onClick={() => navigate("/send-sms")}>
             <Plus className="w-4 h-4" />New Campaign
@@ -66,7 +110,7 @@ export function CampaignsPage() {
           <SearchBar
             value={search}
             onChange={setSearch}
-            placeholder="Search campaigns…"
+            placeholder="Search by name, sender ID, route, gateway…"
             ariaLabel="Search campaigns"
           />
           <select
@@ -101,8 +145,11 @@ export function CampaignsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {["Campaign", "Sender ID", "Recipients", "Delivered", "Failed", "Rate", "Status", "Date", "Actions"].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                  {[
+                    "Campaign", "Sender ID", "Route", "Template", "Created By",
+                    "Gateway", "Queue ID", "Message ID", "Progress", "Retry Count", "Status", "Date", "Actions"
+                  ].map((h) => (
+                    <th key={h} className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -113,7 +160,7 @@ export function CampaignsPage() {
                   <CampaignRow
                     key={c.id}
                     campaign={c}
-                    onView={() => navigate(`/campaigns/${c.id}`)}
+                    onView={() => setSelectedCampaign(c)}
                     onRetry={() => setRetryId(c.id)}
                   />
                 ))}
@@ -125,6 +172,12 @@ export function CampaignsPage() {
           </div>
         )}
       </Card>
+
+      <CampaignDetailsModal
+        campaign={selectedCampaign}
+        open={!!selectedCampaign}
+        onClose={() => setSelectedCampaign(null)}
+      />
 
       <ConfirmDialog
         open={!!retryId}
@@ -148,21 +201,42 @@ function CampaignRow({ campaign: c, onView, onRetry }: {
     ? format(parseISO(c.scheduledAt), "MMM d, yyyy")
     : "—";
 
+  const totalRecipients = c.recipientCount || 1;
+  const sentCount = (c.progress?.sent) ?? (c.recipientCount - c.pendingCount);
+  const progressPct = c.progress?.percentage ?? (sentCount > 0 ? Math.round((sentCount / totalRecipients) * 100) : 0);
+  const firstMessageId = c.messageIds && c.messageIds.length > 0 ? c.messageIds[0] : "—";
+
   return (
     <tr className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-      <td className="px-4 py-3">
-        <p className="font-medium text-foreground max-w-[160px] truncate">{c.name}</p>
+      <td className="px-3 py-3">
+        <p className="font-medium text-foreground max-w-[140px] truncate">{c.name}</p>
       </td>
-      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{c.senderId}</td>
-      <td className="px-4 py-3 text-muted-foreground">{formatNumber(c.recipientCount)}</td>
-      <td className="px-4 py-3 text-green-500 dark:text-green-400">{formatNumber(c.deliveredCount)}</td>
-      <td className="px-4 py-3 text-destructive">{formatNumber(c.failedCount)}</td>
-      <td className="px-4 py-3 text-muted-foreground">{pct(c.deliveredCount, c.recipientCount)}</td>
-      <td className="px-4 py-3">
+      <td className="px-3 py-3 font-mono text-xs text-primary font-semibold">{c.senderId}</td>
+      <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{c.route || "Default Route"}</td>
+      <td className="px-3 py-3 text-xs text-muted-foreground max-w-[100px] truncate">{c.template || "—"}</td>
+      <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{c.createdBy || "System"}</td>
+      <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">{c.gateway || "Notify.lk"}</td>
+      <td className="px-3 py-3 font-mono text-[11px] text-muted-foreground max-w-[90px] truncate" title={c.queueId || "—"}>
+        {c.queueId ? c.queueId.substring(0, 8) + "…" : "—"}
+      </td>
+      <td className="px-3 py-3 font-mono text-[11px] text-muted-foreground max-w-[90px] truncate" title={firstMessageId}>
+        {firstMessageId !== "—" ? firstMessageId.substring(0, 8) + "…" : "—"}
+      </td>
+      <td className="px-3 py-3 min-w-[140px]">
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[11px] font-mono">
+            <span className="text-foreground font-semibold">{sentCount} / {c.recipientCount}</span>
+            <span className="text-muted-foreground">{progressPct}%</span>
+          </div>
+          <ProgressBar value={progressPct} />
+        </div>
+      </td>
+      <td className="px-3 py-3 text-xs text-center font-mono text-muted-foreground">{c.retryCount || 0}</td>
+      <td className="px-3 py-3">
         <Badge status={c.status} map={CAMPAIGN_STATUS_MAP} />
       </td>
-      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">{dateStr}</td>
-      <td className="px-4 py-3">
+      <td className="px-3 py-3 text-muted-foreground whitespace-nowrap text-xs">{dateStr}</td>
+      <td className="px-3 py-3">
         <div className="flex items-center gap-1">
           <button
             onClick={onView}

@@ -114,6 +114,33 @@ export function SettingsPage({ theme, onThemeToggle }: SettingsPageProps) {
             <Card className="p-6 space-y-4">
               <h2 className="text-base font-semibold text-foreground">SMS Configuration</h2>
               <Select
+                label="Active SMS Gateway Provider"
+                value={settings.gateway || "NOTIFY"}
+                onChange={upd("gateway")}
+              >
+                <option value="NOTIFY">Notify.lk (Sri Lanka)</option>
+                <option value="SMSLENZ">SMSlenz.lk (Sri Lanka)</option>
+                <option value="TWILIO">Twilio SMS</option>
+                <option value="MOCK">Mock Provider (Local Test)</option>
+              </Select>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Input
+                  label="API User ID / Account SID"
+                  value={settings.apiKey || ""}
+                  onChange={upd("apiKey")}
+                  placeholder="Enter User ID or Key"
+                />
+                <Input
+                  label="API Secret / Token"
+                  type="password"
+                  value={settings.apiSecret || ""}
+                  onChange={upd("apiSecret")}
+                  placeholder="Enter API Secret Key"
+                />
+              </div>
+
+              <Select
                 label="Default Sender ID"
                 value={settings.defaultSenderId}
                 onChange={upd("defaultSenderId")}

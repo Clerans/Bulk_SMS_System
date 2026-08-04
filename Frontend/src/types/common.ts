@@ -5,12 +5,24 @@ export type CampaignStatus =
   | "SCHEDULED"
   | "QUEUED"
   | "PROCESSING"
+  | "ACCEPTED"
   | "COMPLETED"
   | "PARTIALLY_FAILED"
   | "FAILED"
   | "CANCELLED";
 
-export type DeliveryStatus = "PENDING" | "QUEUED" | "SENT" | "DELIVERED" | "FAILED";
+export type DeliveryStatus =
+  | "PENDING"
+  | "QUEUED"
+  | "PROCESSING"
+  | "ACCEPTED"
+  | "SUBMITTED"
+  | "SENT"
+  | "DELIVERED"
+  | "READ"
+  | "FAILED"
+  | "EXPIRED"
+  | "REJECTED";
 
 export type ContactStatus = "ACTIVE" | "UNSUBSCRIBED" | "BLACKLISTED" | "INVALID";
 
@@ -46,6 +58,20 @@ export interface Campaign {
   pendingCount: number;
   smsUnits: number;
   route: string;
+  template?: string | null;
+  createdBy?: string | null;
+  gateway?: string | null;
+  queueId?: string | null;
+  messageIds?: string[];
+  retryCount?: number;
+  progress?: {
+    percentage: number;
+    sent: number;
+    delivered: number;
+    failed: number;
+    pending: number;
+  };
+  statusBreakdown?: Record<string, number>;
   scheduledAt: string | null;
   sentAt: string | null;
   createdAt: string;
@@ -99,6 +125,12 @@ export interface DeliveryReport {
   sentAt: string;
   deliveredAt: string | null;
   failureReason: string | null;
+  gatewayMessageId?: string | null;
+  senderId?: string | null;
+  route?: string | null;
+  gatewayResponse?: string | null;
+  errorCode?: string | null;
+  errorDescription?: string | null;
 }
 
 export interface DashboardSummary {

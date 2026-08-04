@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Tuple, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 import jwt
@@ -28,7 +29,7 @@ class AuthService:
         if not user:
             raise UnauthorizedException(message="Incorrect email or password")
             
-        if not verify_password(password, user.password):
+        if not await asyncio.to_thread(verify_password, password, user.password):
             raise UnauthorizedException(message="Incorrect email or password")
             
         if user.status != UserStatus.ACTIVE:

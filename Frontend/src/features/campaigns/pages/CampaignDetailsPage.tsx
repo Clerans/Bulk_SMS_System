@@ -45,7 +45,7 @@ export function CampaignDetailsPage() {
         setCampaign((prev) => {
           if (!prev) return prev;
           const progress = data.progress || 0;
-          const status = progress >= 100 ? "COMPLETED" : "PROCESSING";
+          const status = progress >= 100 ? "ACCEPTED" : "PROCESSING";
           const deliveredCount = Math.round((prev.recipientCount * progress) / 100);
           return {
             ...prev,

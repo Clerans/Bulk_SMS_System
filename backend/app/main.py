@@ -106,6 +106,9 @@ from app.websocket.manager import manager as ws_manager
 
 @app.on_event("startup")
 async def startup_event():
+    gateway_name = getattr(settings, "SMS_GATEWAY", "SMSLENZ")
+    logger.info(f"Current Gateway = {gateway_name}")
+    print(f"Current Gateway = {gateway_name}")
     await ws_manager.start_redis_listener()
 
 @app.on_event("shutdown")

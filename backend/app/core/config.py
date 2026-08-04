@@ -43,4 +43,19 @@ class Settings(BaseSettings):
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
 
+    # SMS Gateway Configurations
+    SMS_GATEWAY: str = "SMSLENZ"
+    SMSLENZ_USER_ID: Union[str, None] = None
+    SMSLENZ_API_KEY: Union[str, None] = None
+    SMSLENZ_SENDER_ID: Union[str, None] = "CAFECHAI"
+    SMSLENZ_BASE_URL: str = "https://smslenz.lk/api"
+
+    # Notify.lk Gateway Configurations
+    NOTIFY_USER_ID: Union[str, None] = None
+    NOTIFY_API_KEY: Union[str, None] = None
+    NOTIFY_SENDER_ID: Union[str, None] = "NotifyDEMO"
+    NOTIFY_BASE_URL: str = "https://app.notify.lk/api/v1"
+
+
 settings = Settings()
+

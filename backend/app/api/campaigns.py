@@ -19,7 +19,80 @@ from app.services.file_service import file_service
 from app.services.audit_service import audit_service
 from app.workers.tasks import process_sms_campaign
 
+from sqlalchemy.orm import selectinload
+
 router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
+
+async def format_campaign_dict(db: AsyncSession, campaign: Campaign) -> dict:
+    query = (
+        select(Campaign)
+        .options(
+            selectinload(Campaign.creator),
+            selectinload(Campaign.template),
+            selectinload(Campaign.recipients)
+        )
+        .where(Campaign.id == campaign.id)
+    )
+    res = await db.execute(query)
+    c = res.scalar_one_or_none() or campaign
+
+    breakdown = {
+        "QUEUED": 0, "PROCESSING": 0, "ACCEPTED": 0, "SUBMITTED": 0,
+        "SENT": 0, "DELIVERED": 0, "READ": 0, "FAILED": 0, "EXPIRED": 0, "REJECTED": 0
+    }
+    msg_ids = []
+    if hasattr(c, "recipients") and c.recipients:
+        for r in c.recipients:
+            st = r.status.value if hasattr(r.status, "value") else str(r.status)
+            if st in breakdown:
+                breakdown[st] += 1
+            else:
+                breakdown[st] = 1
+            if getattr(r, "gateway_message_id", None):
+                msg_ids.append(r.gateway_message_id)
+
+    total = c.recipient_count or (len(c.recipients) if hasattr(c, "recipients") and c.recipients else 0)
+    delivered = c.delivered_count or 0
+    failed = c.failed_count or 0
+    pending = c.pending_count or 0
+    sent_cnt = max(0, total - pending)
+    pct_val = round((sent_cnt / total * 100), 1) if total > 0 else 0.0
+
+    progress_obj = {
+        "percentage": pct_val,
+        "sent": sent_cnt,
+        "delivered": delivered,
+        "failed": failed,
+        "pending": pending
+    }
+
+    created_by_val = c.creator.name if (hasattr(c, "creator") and c.creator and getattr(c.creator, "name", None)) else (c.creator.email if hasattr(c, "creator") and c.creator else "System")
+    template_val = c.template.name if (hasattr(c, "template") and c.template and getattr(c.template, "name", None)) else None
+
+    return {
+        "id": str(c.id),
+        "name": c.name,
+        "senderId": c.sender_id,
+        "message": c.message,
+        "status": c.status.value if hasattr(c.status, "value") else str(c.status),
+        "recipientCount": c.recipient_count,
+        "deliveredCount": c.delivered_count,
+        "failedCount": c.failed_count,
+        "pendingCount": c.pending_count,
+        "smsUnits": c.sms_units,
+        "route": c.route,
+        "template": template_val,
+        "createdBy": created_by_val,
+        "gateway": getattr(c, "gateway", None) or "Notify.lk",
+        "queueId": getattr(c, "queue_id", None),
+        "messageIds": msg_ids,
+        "retryCount": getattr(c, "retry_count", 0) or 0,
+        "progress": progress_obj,
+        "statusBreakdown": breakdown,
+        "scheduledAt": c.scheduled_time.isoformat() if getattr(c, "scheduled_time", None) else None,
+        "sentAt": c.sent_at.isoformat() if getattr(c, "sent_at", None) else None,
+        "createdAt": c.created_at.isoformat() if getattr(c, "created_at", None) else None
+    }
 
 @router.get("", response_model=None, dependencies=[Depends(require_viewer)])
 async def get_campaigns(
@@ -39,11 +112,12 @@ async def get_campaigns(
         search=search,
         status=status_filter
     )
+    formatted_items = [await format_campaign_dict(db, item) for item in items]
     return {
         "success": True,
         "message": "Campaigns retrieved successfully",
         "data": {
-            "items": [CampaignResponse.model_validate(item) for item in items],
+            "items": formatted_items,
             "total": total,
             "skip": skip,
             "limit": limit
@@ -57,16 +131,17 @@ async def get_campaign(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Retrieve details of a single campaign, including its stats.
+    Retrieve details of a single campaign, including its stats and enterprise metadata.
     """
     campaign = await campaign_repository.get(db, id=campaign_id)
     if not campaign:
         raise NotFoundException(message="Campaign not found")
         
+    c_data = await format_campaign_dict(db, campaign)
     return {
         "success": True,
         "message": "Campaign retrieved successfully",
-        "data": CampaignResponse.model_validate(campaign),
+        "data": c_data,
         "errors": None
     }
 
@@ -185,7 +260,26 @@ async def create_campaign(
     return {
         "success": True,
         "message": "Campaign created and queued successfully",
-        "data": CampaignResponse.model_validate(db_campaign),
+        "data": await format_campaign_dict(db, db_campaign),
+        "errors": None
+    }
+
+@router.get("/{campaign_id}", response_model=None, dependencies=[Depends(require_viewer)])
+async def get_campaign(
+    campaign_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get campaign details by ID.
+    """
+    db_campaign = await campaign_repository.get(db, id=campaign_id)
+    if not db_campaign:
+        raise NotFoundException(message="Campaign not found")
+        
+    return {
+        "success": True,
+        "message": "Campaign retrieved successfully",
+        "data": await format_campaign_dict(db, db_campaign),
         "errors": None
     }
 
