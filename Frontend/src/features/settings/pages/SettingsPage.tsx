@@ -120,8 +120,6 @@ export function SettingsPage({ theme, onThemeToggle }: SettingsPageProps) {
               >
                 <option value="NOTIFY">Notify.lk (Sri Lanka)</option>
                 <option value="SMSLENZ">SMSlenz.lk (Sri Lanka)</option>
-                <option value="TWILIO">Twilio SMS</option>
-                <option value="MOCK">Mock Provider (Local Test)</option>
               </Select>
 
               <div className="grid sm:grid-cols-2 gap-4">
