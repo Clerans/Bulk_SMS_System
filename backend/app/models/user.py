@@ -8,6 +8,7 @@ from app.core.database import Base
 from app.models.base import SoftDeleteMixin, TimestampMixin
 
 class UserRole(str, enum.Enum):
+    SUPERADMIN = "SUPERADMIN"
     ADMIN = "ADMIN"
     MANAGER = "MANAGER"
     OPERATOR = "OPERATOR"
@@ -32,6 +33,7 @@ class User(Base, TimestampMixin, SoftDeleteMixin):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     password: Mapped[str] = mapped_column(String(255), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role_enum"),
         default=UserRole.OPERATOR,

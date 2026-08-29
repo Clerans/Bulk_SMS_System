@@ -63,7 +63,8 @@ class RoleChecker:
         return current_user
 
 # Predefined role dependencies for clean code
-require_admin = RoleChecker([UserRole.ADMIN])
-require_manager = RoleChecker([UserRole.ADMIN, UserRole.MANAGER])
-require_operator = RoleChecker([UserRole.ADMIN, UserRole.MANAGER, UserRole.OPERATOR])
-require_viewer = RoleChecker([UserRole.ADMIN, UserRole.MANAGER, UserRole.OPERATOR, UserRole.VIEWER])
+require_superadmin = RoleChecker([UserRole.SUPERADMIN])
+require_admin = RoleChecker([UserRole.SUPERADMIN, UserRole.ADMIN])
+require_manager = RoleChecker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER])
+require_operator = RoleChecker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.OPERATOR])
+require_viewer = RoleChecker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.OPERATOR, UserRole.VIEWER])
