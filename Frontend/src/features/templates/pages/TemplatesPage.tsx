@@ -160,8 +160,16 @@ export function TemplatesPage() {
 
       {/* New Template Modal */}
       {addOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <Card className="w-full max-w-lg p-6 shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setAddOpen(false);
+              setFormError("");
+            }
+          }}
+        >
+          <Card className="w-full max-w-lg p-6 shadow-2xl border border-border animate-in zoom-in-95 duration-150">
             <h3 className="text-base font-semibold text-foreground mb-4">New Template</h3>
             <div className="space-y-4">
               <Input

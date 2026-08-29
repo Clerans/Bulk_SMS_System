@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { Button } from "../../ui/Button";
 import { Card } from "../../ui/Card";
 
@@ -17,14 +18,17 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/55"
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
     >
-      <Card className="w-full max-w-md p-6 shadow-2xl">
+      <Card className="w-full max-w-md p-6 shadow-2xl border border-border animate-in zoom-in-95 duration-150">
         <h3 id="confirm-title" className="text-base font-semibold text-foreground mb-2">
           {title}
         </h3>
@@ -36,6 +40,7 @@ export function ConfirmDialog({
           </Button>
         </div>
       </Card>
-    </div>
+    </div>,
+    document.body
   );
 }

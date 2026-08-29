@@ -1,18 +1,31 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Trash2, ShieldCheck, Shield, User, Search, ShieldAlert, UserPlus } from "lucide-react";
+import { Plus, Trash2, Users, Shield, ShieldCheck, ShieldAlert, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "../../../components/ui/PageHeader";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { Card } from "../../../components/ui/Card";
-import { ConfirmDialog } from "../../../components/common/ConfirmDialog";
 import { SearchBar } from "../../../components/common/SearchBar";
 import { EmptyState } from "../../../components/common/EmptyState";
+import { ConfirmDialog } from "../../../components/common/ConfirmDialog";
 import { AddUserModal } from "../components/AddUserModal";
 import { userService } from "../../../services/userService";
 import { useAuth } from "../../auth/hooks/useAuth";
 import type { User as UserType, UserRole } from "../../../types/common";
 import { format, parseISO } from "date-fns";
+
+const USER_ROLE_MAP: Record<UserRole, { label: string; variant: "success" | "warning" | "danger" | "neutral" | "info" }> = {
+  SUPERADMIN: { label: "Super Admin", variant: "info" },
+  ADMIN:      { label: "Admin",       variant: "success" },
+  MANAGER:    { label: "Manager",     variant: "warning" },
+  OPERATOR:   { label: "Operator",    variant: "neutral" },
+  VIEWER:     { label: "Viewer",      variant: "neutral" },
+};
+
+const USER_STATUS_MAP: Record<string, { label: string; variant: "success" | "neutral" | "danger" }> = {
+  ACTIVE:   { label: "Active",   variant: "success" },
+  INACTIVE: { label: "Inactive", variant: "neutral" },
+};
 
 export function UsersPage() {
   const { user: currentUser } = useAuth();
@@ -20,6 +33,7 @@ export function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -40,7 +54,7 @@ export function UsersPage() {
     }
   }
 
-  const filteredUsers = useMemo(() => {
+  const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return users.filter((u) => {
       const matchSearch =
@@ -48,20 +62,20 @@ export function UsersPage() {
         u.email.toLowerCase().includes(q) ||
         (u.phone && u.phone.includes(q));
       const matchRole = roleFilter === "ALL" || u.role === roleFilter;
-      return matchSearch && matchRole;
+      const matchStatus = statusFilter === "ALL" || (u.status || "ACTIVE") === statusFilter;
+      return matchSearch && matchRole && matchStatus;
     });
-  }, [users, search, roleFilter]);
+  }, [users, search, roleFilter, statusFilter]);
 
   function handleUserAdded(newUser: UserType) {
     setUsers((prev) => [newUser, ...prev]);
   }
 
-  async function handleDeleteConfirm() {
-    if (!deleteUserId) return;
+  async function handleDelete(id: string) {
     setDeleting(true);
     try {
-      await userService.deleteUser(deleteUserId);
-      setUsers((prev) => prev.filter((u) => u.id !== deleteUserId));
+      await userService.deleteUser(id);
+      setUsers((prev) => prev.filter((u) => u.id !== id));
       toast.success("User deleted successfully.");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to delete user.");
@@ -87,44 +101,32 @@ export function UsersPage() {
     return { allowed: true };
   }
 
-  const roleBadgeMap: Record<UserRole, { label: string; bg: string; text: string; icon: typeof Shield }> = {
-    SUPERADMIN: { label: "Super Admin", bg: "bg-purple-100 dark:bg-purple-950/60", text: "text-purple-700 dark:text-purple-300", icon: ShieldAlert },
-    ADMIN:      { label: "Admin",       bg: "bg-blue-100 dark:bg-blue-950/60",     text: "text-blue-700 dark:text-blue-300",     icon: ShieldCheck },
-    MANAGER:    { label: "Manager",     bg: "bg-cyan-100 dark:bg-cyan-950/60",     text: "text-cyan-700 dark:text-cyan-300",     icon: Shield },
-    OPERATOR:   { label: "Operator",    bg: "bg-emerald-100 dark:bg-emerald-950/60", text: "text-emerald-700 dark:text-emerald-300", icon: User },
-    VIEWER:     { label: "Viewer",      bg: "bg-slate-100 dark:bg-slate-800",     text: "text-slate-700 dark:text-slate-300",     icon: User },
-  };
-
   return (
-    <div className="space-y-6">
+    <div>
       <PageHeader
-        title="User Management"
-        description="Manage system administrators, operators, role-based access control, and user permissions."
+        title="Users"
+        description="Manage system administrators, operators, role-based access, and permissions."
         actions={
-          <Button
-            onClick={() => setIsAddModalOpen(true)}
-            className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-md gap-2"
-          >
-            <UserPlus className="w-4 h-4" />
-            Add New User
+          <Button onClick={() => setIsAddModalOpen(true)}>
+            <Plus className="w-4 h-4" />
+            Add User
           </Button>
         }
       />
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-        <SearchBar
-          value={search}
-          onChange={setSearch}
-          placeholder="Search users by name, email, or mobile..."
-          className="w-full sm:w-80"
-        />
-
-        <div className="flex gap-2 items-center w-full sm:w-auto">
+      {/* Search & Filter Toolbar matching ContactsPage */}
+      <Card className="p-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <SearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by name, email, or phone..."
+            className="flex-1"
+          />
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="px-3.5 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+            className="px-3 py-2 text-sm bg-input-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
           >
             <option value="ALL">All Roles</option>
             <option value="SUPERADMIN">Super Admin</option>
@@ -132,120 +134,105 @@ export function UsersPage() {
             <option value="OPERATOR">Operator</option>
             <option value="VIEWER">Viewer</option>
           </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 text-sm bg-input-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select>
         </div>
-      </div>
+      </Card>
 
-      {/* Users Table */}
-      <Card className="overflow-hidden border border-slate-200/80 dark:border-slate-800">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
-            <thead>
-              <tr className="bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200/80 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider">
-                <th className="py-3.5 px-4">User</th>
-                <th className="py-3.5 px-4">Mobile</th>
-                <th className="py-3.5 px-4">Role</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4">Created Date</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
-              {filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center">
-                    <EmptyState
-                      icon={User}
-                      title="No users found"
-                      description={search ? "Try adjusting your search filters." : "Create your first system user."}
-                    />
-                  </td>
+      {/* Users table */}
+      <Card className="mb-6">
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="No users found"
+            description="Create your first system administrator or operator to get started."
+            action={
+              <Button onClick={() => setIsAddModalOpen(true)}>
+                <Plus className="w-4 h-4" />
+                Add User
+              </Button>
+            }
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  {["Name", "Email", "Phone", "Role", "Status", "Created Date", ""].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                  ))}
                 </tr>
-              ) : (
-                filteredUsers.map((u) => {
-                  const roleConfig = roleBadgeMap[u.role] || roleBadgeMap.VIEWER;
-                  const RoleIcon = roleConfig.icon;
+              </thead>
+              <tbody>
+                {filtered.map((u) => {
                   const delPerm = canDeleteUser(u);
                   const isCurrent = u.id === currentUser?.id;
 
                   return (
-                    <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                      {/* Name & Email */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-slate-700 to-slate-900 text-white font-bold flex items-center justify-center text-xs shadow-sm flex-shrink-0">
-                            {u.name.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                              {u.name}
-                              {isCurrent && (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold">
-                                  You
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs text-slate-400">{u.email}</div>
-                          </div>
+                    <tr key={u.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3 font-medium text-foreground">
+                        <div className="flex items-center gap-2">
+                          {u.name}
+                          {isCurrent && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold">
+                              You
+                            </span>
+                          )}
                         </div>
                       </td>
-
-                      {/* Phone */}
-                      <td className="py-3.5 px-4 font-mono text-xs">
-                        {u.phone || <span className="text-slate-400">—</span>}
+                      <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{u.phone || "—"}</td>
+                      <td className="px-4 py-3">
+                        <Badge
+                          status={u.role}
+                          map={USER_ROLE_MAP as any}
+                        />
                       </td>
-
-                      {/* Role Badge */}
-                      <td className="py-3.5 px-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${roleConfig.bg} ${roleConfig.text}`}>
-                          <RoleIcon className="w-3.5 h-3.5" />
-                          {roleConfig.label}
-                        </span>
+                      <td className="px-4 py-3">
+                        <Badge
+                          status={u.status || "ACTIVE"}
+                          map={USER_STATUS_MAP as any}
+                        />
                       </td>
-
-                      {/* Status */}
-                      <td className="py-3.5 px-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          u.status === "ACTIVE"
-                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
-                            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${u.status === "ACTIVE" ? "bg-emerald-500" : "bg-slate-400"}`} />
-                          {u.status || "ACTIVE"}
-                        </span>
-                      </td>
-
-                      {/* Date */}
-                      <td className="py-3.5 px-4 text-xs text-slate-500 dark:text-slate-400">
+                      <td className="px-4 py-3 text-muted-foreground">
                         {u.created_at ? format(parseISO(u.created_at), "MMM d, yyyy") : "—"}
                       </td>
-
-                      {/* Actions */}
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="px-4 py-3">
                         {delPerm.allowed ? (
                           <button
                             onClick={() => setDeleteUserId(u.id)}
-                            title="Delete User"
-                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
+                            aria-label={`Remove ${u.name}`}
+                            className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         ) : (
                           <button
                             disabled
                             title={delPerm.reason}
-                            className="p-1.5 text-slate-300 dark:text-slate-700 cursor-not-allowed"
+                            className="p-1.5 text-muted-foreground/30 cursor-not-allowed"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                })}
+              </tbody>
+            </table>
+            <div className="px-4 py-3 border-t border-border">
+              <p className="text-xs text-muted-foreground">{filtered.length} user{filtered.length !== 1 ? "s" : ""} shown</p>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Add User Modal */}
@@ -256,16 +243,14 @@ export function UsersPage() {
         currentUserRole={currentUser?.role}
       />
 
-      {/* Delete Confirm Dialog */}
+      {/* Delete User Confirmation */}
       <ConfirmDialog
-        isOpen={!!deleteUserId}
-        title="Delete User"
-        message={`Are you sure you want to delete user "${userToDelete?.name}" (${userToDelete?.email})? This action cannot be undone.`}
-        confirmLabel="Delete User"
-        cancelLabel="Cancel"
-        variant="danger"
-        loading={deleting}
-        onConfirm={handleDeleteConfirm}
+        open={!!deleteUserId}
+        title="Remove user?"
+        description={`"${userToDelete?.name ?? "This user"}" will be permanently removed from the system.`}
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => deleteUserId && handleDelete(deleteUserId)}
         onCancel={() => setDeleteUserId(null)}
       />
     </div>
