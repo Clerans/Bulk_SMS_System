@@ -202,12 +202,18 @@ export function DeliveryReportsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
-                    {[
-                      "Campaign", "Phone", "Status", "Gateway Message ID", "Sender ID",
-                      "Route", "Gateway Response", "Error Code", "Error Description", "Sent At", "Delivered At", "Action"
-                    ].map((h) => (
-                      <th key={h} className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                    ))}
+                    <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Campaign</th>
+                    <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Phone</th>
+                    <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Status</th>
+                    <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Gateway Message ID</th>
+                    <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Sender ID</th>
+                    <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Route</th>
+                    <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Gateway Response</th>
+                    <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Error Code</th>
+                    <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Error Description</th>
+                    <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Sent At</th>
+                    <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Delivered At</th>
+                    <th className="text-right px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Action</th>
                   </tr>
                 </thead>
                 <tbody>

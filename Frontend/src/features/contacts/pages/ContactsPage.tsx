@@ -169,9 +169,10 @@ export function ContactsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {["Name", "Phone", "Group", "Country", "Status", "Last Campaign", ""].map((h) => (
+                  {["Name", "Phone", "Group", "Country", "Status", "Last Campaign"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                   ))}
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -183,14 +184,17 @@ export function ContactsPage() {
                     <td className="px-4 py-3 text-muted-foreground">{c.country}</td>
                     <td className="px-4 py-3"><Badge status={c.status} map={CONTACT_STATUS_MAP} /></td>
                     <td className="px-4 py-3 text-muted-foreground">{c.lastCampaign ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => setDeleteId(c.id)}
-                        aria-label={`Remove ${c.name}`}
-                        className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end">
+                        <button
+                          onClick={() => setDeleteId(c.id)}
+                          aria-label={`Remove ${c.name}`}
+                          className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                          title="Delete Contact"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

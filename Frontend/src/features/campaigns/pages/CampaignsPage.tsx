@@ -145,14 +145,19 @@ export function CampaignsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {[
-                    "Campaign", "Sender ID", "Route", "Template", "Created By",
-                    "Gateway", "Queue ID", "Message ID", "Progress", "Retry Count", "Status", "Date", "Actions"
-                  ].map((h) => (
-                    <th key={h} className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
+                  <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Campaign</th>
+                  <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Sender ID</th>
+                  <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Route</th>
+                  <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Template</th>
+                  <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Created By</th>
+                  <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Gateway</th>
+                  <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Queue ID</th>
+                  <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Message ID</th>
+                  <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Progress</th>
+                  <th className="text-center px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Retry Count</th>
+                  <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Status</th>
+                  <th className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Date</th>
+                  <th className="text-right px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -236,8 +241,8 @@ function CampaignRow({ campaign: c, onView, onRetry }: {
         <Badge status={c.status} map={CAMPAIGN_STATUS_MAP} />
       </td>
       <td className="px-3 py-3 text-muted-foreground whitespace-nowrap text-xs">{dateStr}</td>
-      <td className="px-3 py-3">
-        <div className="flex items-center gap-1">
+      <td className="px-3 py-3 text-right">
+        <div className="flex items-center justify-end gap-1">
           <button
             onClick={onView}
             title="View details"
