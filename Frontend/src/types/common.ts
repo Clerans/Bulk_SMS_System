@@ -30,13 +30,36 @@ export type RecipientSource = "CSV" | "GROUPS" | "MANUAL";
 
 export type TemplateCategory = "Marketing" | "Transactional" | "Reminder" | "Notification" | "OTP";
 
-export type UserRole = "ADMIN" | "OPERATOR";
+export type UserRole = "SUPERADMIN" | "ADMIN" | "MANAGER" | "OPERATOR" | "VIEWER";
+export type UserStatus = "ACTIVE" | "INACTIVE";
 
 export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   role: UserRole;
+  status?: UserStatus;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CreateUserRequest {
+  name: string;
+  email: string;
+  phone?: string;
+  password: string;
+  role: UserRole;
+  status: UserStatus;
+}
+
+export interface UpdateUserRequest {
+  name?: string;
+  email?: string;
+  phone?: string;
+  password?: string;
+  role?: UserRole;
+  status?: UserStatus;
 }
 
 export interface AuthState {
