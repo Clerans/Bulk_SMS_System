@@ -12,6 +12,13 @@ class DeliveryReportResponse(BaseModel):
     sent_at: datetime = Field(..., serialization_alias="sentAt")
     delivered_at: Optional[datetime] = Field(None, serialization_alias="deliveredAt")
     
+    gateway_message_id: Optional[str] = Field(None, serialization_alias="gatewayMessageId")
+    sender_id: Optional[str] = Field(None, serialization_alias="senderId")
+    route: Optional[str] = Field(None, serialization_alias="route")
+    gateway_response: Optional[str] = Field(None, serialization_alias="gatewayResponse")
+    error_code: Optional[str] = Field(None, serialization_alias="errorCode")
+    error_description: Optional[str] = Field(None, serialization_alias="errorDescription")
+
     # Map database error_message to serialization field
     error_message: Optional[str] = Field(None, exclude=True)
 

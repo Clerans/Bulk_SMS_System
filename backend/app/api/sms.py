@@ -5,6 +5,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import BadRequestException, NotFoundException
 from app.dependencies.auth import get_current_user, require_operator, require_viewer
@@ -15,7 +16,9 @@ from app.repositories.setting import setting_repository
 from app.schemas.sms import SendBulkSMSRequest, SendSMSRequest
 from app.schemas.report import DeliveryReportResponse
 from app.services.file_service import file_service
-from app.services.sms_provider import MockSMSProvider, TwilioSMSProvider
+from app.services.sms_provider import MockSMSProvider, TwilioSMSProvider, get_sms_provider
+from app.services.providers.smslenz_provider import SMSLenzProvider
+from app.services.providers.notify_provider import NotifySMSProvider
 
 router = APIRouter(prefix="/sms", tags=["SMS"])
 
@@ -26,7 +29,7 @@ async def send_single_sms(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Send an ad-hoc SMS to a single recipient immediately. Deducts credit from global settings balance.
+    Send an ad-hoc SMS to a single recipient immediately. Deducts credit or syncs with gateway balance.
     """
     require_operator(current_user)
 
@@ -38,13 +41,27 @@ async def send_single_sms(
     if app_settings.sms_balance < 1:
         raise BadRequestException(message="Insufficient SMS balance credits")
 
-    # Instantiate Provider
-    if app_settings.gateway.upper() == "TWILIO" and app_settings.api_key and app_settings.api_secret:
+    # Gateway Selection Strategy: SMS_GATEWAY env var / NOTIFY credentials -> DB Setting -> Fallback
+    gw_name = (getattr(settings, "SMS_GATEWAY", None) or app_settings.gateway or "SMSLENZ").upper()
+
+    if gw_name == "NOTIFY" or (getattr(settings, "NOTIFY_USER_ID", None) and getattr(settings, "NOTIFY_API_KEY", None)):
+        provider = NotifySMSProvider(
+            user_id=getattr(settings, "NOTIFY_USER_ID", None) or app_settings.api_key,
+            api_key=getattr(settings, "NOTIFY_API_KEY", None) or app_settings.api_secret,
+            sender_id=payload.sender_id or getattr(settings, "NOTIFY_SENDER_ID", None) or app_settings.sender_id or "NotifyDEMO"
+        )
+    elif gw_name == "SMSLENZ" or (settings.SMSLENZ_USER_ID and settings.SMSLENZ_API_KEY):
+        provider = SMSLenzProvider(
+            user_id=settings.SMSLENZ_USER_ID or app_settings.api_key,
+            api_key=settings.SMSLENZ_API_KEY or app_settings.api_secret,
+            sender_id=payload.sender_id or settings.SMSLENZ_SENDER_ID or app_settings.sender_id or "CAFECHAI"
+        )
+    elif gw_name == "TWILIO" and app_settings.api_key and app_settings.api_secret:
         provider = TwilioSMSProvider(app_settings.api_key, app_settings.api_secret)
     else:
         provider = MockSMSProvider()
 
-    sender = payload.sender_id or app_settings.default_sender_id
+    sender = payload.sender_id or getattr(settings, "NOTIFY_SENDER_ID", None) or getattr(settings, "SMSLENZ_SENDER_ID", None) or app_settings.default_sender_id or "NotifyDEMO"
 
     # Dispatch SMS
     try:
@@ -54,8 +71,14 @@ async def send_single_sms(
             sender_id=sender
         )
         
-        # Deduct credits if sent successfully
-        if res["status"] == DeliveryStatus.DELIVERED:
+        # Synchronize credit balance if provided by gateway response
+        if res.get("sms_credit_balance") is not None:
+            try:
+                app_settings.sms_balance = int(float(res["sms_credit_balance"]))
+                db.add(app_settings)
+            except Exception:
+                pass
+        elif res["status"] in [DeliveryStatus.ACCEPTED, DeliveryStatus.SENT, DeliveryStatus.DELIVERED]:
             app_settings.sms_balance -= 1
             db.add(app_settings)
 
@@ -63,7 +86,7 @@ async def send_single_sms(
         log_entry = SMSLog(
             phone=normalized_phone,
             message=payload.message,
-            provider=app_settings.gateway,
+            provider="SMSLENZ" if isinstance(provider, SMSLenzProvider) else app_settings.gateway,
             status=res["status"],
             error_message=res["error_message"],
             sent_at=res["sent_at"],
@@ -76,11 +99,13 @@ async def send_single_sms(
         # Eager load campaign details (None) for response serializer
         log_entry.campaign = None
 
+        is_accepted = res["status"] in [DeliveryStatus.ACCEPTED, DeliveryStatus.SENT, DeliveryStatus.DELIVERED]
+
         return {
-            "success": True,
-            "message": "SMS processed",
+            "success": is_accepted,
+            "message": "SMS request accepted by gateway" if is_accepted else f"SMS dispatch failed: {res['error_message']}",
             "data": DeliveryReportResponse.model_validate(log_entry),
-            "errors": None
+            "errors": None if is_accepted else [{"message": res["error_message"] or "SMS dispatch failed"}]
         }
     except Exception as ex:
         raise BadRequestException(message=f"Failed to process SMS dispatch: {str(ex)}")

@@ -55,7 +55,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     setError("");
 
     if (!email.trim()) {
-      setError("Email address is required.");
+      setError("Username or email is required.");
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 400);
       return;
@@ -105,19 +105,19 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Email Input Group */}
+                {/* Username Input Group */}
                 <div className={`space-y-1.5 ${isShaking ? "shake-animation" : ""}`}>
-                  <label htmlFor="emailInput" className="text-xs font-bold text-slate-500 tracking-wide">Username</label>
+                  <label htmlFor="emailInput" className="text-xs font-bold text-slate-500 tracking-wide">User Name</label>
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-brand transition-colors duration-200">
                       <i className="fa-solid fa-user text-sm"></i>
                     </div>
                     <input 
-                      type="email" 
+                      type="text" 
                       id="emailInput" 
                       required
                       className="block w-full pl-11 pr-4 py-3.5 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-2xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand shadow-sm transition-all duration-200 text-xs font-semibold"
-                      placeholder="Enter your email"
+                      placeholder="Enter your username or email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                     />

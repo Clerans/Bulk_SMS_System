@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Plus, Trash2, Users, FolderPlus } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "../../../components/ui/PageHeader";
@@ -16,7 +17,6 @@ import { normalizePhone } from "../../../utils/phone";
 import { useContacts } from "../hooks/useContacts";
 import { contactsService } from "../services/contacts.service";
 import type { Contact, ContactStatus, ContactGroup } from "../../../types/common";
-import { useEffect } from "react";
 
 export function ContactsPage() {
   const { contacts, addContact, deleteContact } = useContacts();
@@ -169,9 +169,10 @@ export function ContactsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {["Name", "Phone", "Group", "Country", "Status", "Last Campaign", ""].map((h) => (
+                  {["Name", "Phone", "Group", "Country", "Status", "Last Campaign"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                   ))}
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -183,14 +184,17 @@ export function ContactsPage() {
                     <td className="px-4 py-3 text-muted-foreground">{c.country}</td>
                     <td className="px-4 py-3"><Badge status={c.status} map={CONTACT_STATUS_MAP} /></td>
                     <td className="px-4 py-3 text-muted-foreground">{c.lastCampaign ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => setDeleteId(c.id)}
-                        aria-label={`Remove ${c.name}`}
-                        className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end">
+                        <button
+                          onClick={() => setDeleteId(c.id)}
+                          aria-label={`Remove ${c.name}`}
+                          className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                          title="Delete Contact"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -222,14 +226,22 @@ export function ContactsPage() {
       </div>
 
       {/* Add Contact modal */}
-      {addOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <Card className="w-full max-w-md p-6 shadow-2xl">
+      {addOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/55"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setAddOpen(false);
+              setFormError("");
+            }
+          }}
+        >
+          <Card className="w-full max-w-md p-6 shadow-2xl border border-border animate-in zoom-in-95 duration-150">
             <h3 className="text-base font-semibold text-foreground mb-4">Add Contact</h3>
             <div className="space-y-4">
               <Input
                 label="Full Name"
-                placeholder="Priya Jayawardena"
+                placeholder="Enter Your Full Name"
                 value={form.name}
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
               />
@@ -264,7 +276,8 @@ export function ContactsPage() {
               <Button onClick={handleAdd}><Plus className="w-4 h-4" />Add Contact</Button>
             </div>
           </Card>
-        </div>
+        </div>,
+        document.body
       )}
 
       <ConfirmDialog
@@ -278,9 +291,17 @@ export function ContactsPage() {
       />
 
       {/* Create Group Modal */}
-      {addGroupOpen && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-200">
+      {addGroupOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/55"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setAddGroupOpen(false);
+              setGroupFormError("");
+            }
+          }}
+        >
+          <Card className="w-full max-w-md p-6 relative shadow-2xl border border-border animate-in zoom-in-95 duration-150">
             <h3 className="text-lg font-semibold text-foreground mb-4">Create Contact Group</h3>
             <div className="space-y-4">
               <Input
@@ -304,7 +325,8 @@ export function ContactsPage() {
               <Button onClick={handleAddGroup}><FolderPlus className="w-4 h-4" />Create Group</Button>
             </div>
           </Card>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

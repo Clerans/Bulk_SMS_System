@@ -51,7 +51,7 @@ export function DashboardPage() {
         prev.map((c) => {
           if (c.id === data.campaignId) {
             const progress = data.progress || 0;
-            const status = progress >= 100 ? "COMPLETED" : "PROCESSING";
+            const status = progress >= 100 ? "ACCEPTED" : "PROCESSING";
             const deliveredCount = Math.round((c.recipientCount * progress) / 100);
             return {
               ...c,

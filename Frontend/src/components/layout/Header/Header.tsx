@@ -20,6 +20,7 @@ const PAGE_META: Record<string, { title: string; description: string; crumb: str
   "/contacts":   { title: "Audience Segments",           description: "Group contacts dynamically based on behaviors or parameters.",               crumb: "Contacts"          },
   "/templates":  { title: "Quick-Response Templates",    description: "Create standardized templates to speed up message dispatch.",                crumb: "Templates"         },
   "/reports":    { title: "Delivery Intelligence",       description: "Trace exact logs and carrier success rates.",                                crumb: "Delivery Reports"  },
+  "/users":      { title: "User Management",             description: "Manage system access, roles, and administrative permissions.",               crumb: "Users"             },
   "/settings":   { title: "System Configurations",       description: "Manage your credentials, custom sender IDs, and webhooks.",                 crumb: "Settings"          },
 };
 

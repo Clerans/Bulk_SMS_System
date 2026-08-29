@@ -56,6 +56,31 @@ export function SettingsPage({ theme, onThemeToggle }: SettingsPageProps) {
     }
   };
 
+  const handleGatewayChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedGw = e.target.value;
+    if (!settings) return;
+
+    if (selectedGw === "NOTIFY") {
+      setSettings({
+        ...settings,
+        gateway: "NOTIFY",
+        apiKey: "anika@cafechai.lk",
+        apiSecret: "e527d2cfaee741639d6cfef16ebf09b5",
+        defaultSenderId: "NotifyDEMO",
+        senderId: "NotifyDEMO",
+      });
+    } else if (selectedGw === "SMSLENZ") {
+      setSettings({
+        ...settings,
+        gateway: "SMSLENZ",
+        apiKey: "anika@cafechai.lk",
+        apiSecret: "e527d2cfaee741639d6cfef16ebf09b5",
+        defaultSenderId: "SMSlenzDEMO",
+        senderId: "SMSlenzDEMO",
+      });
+    }
+  };
+
   if (loading || !settings) {
     return (
       <div className="p-8 text-center text-muted-foreground text-sm">
@@ -113,6 +138,31 @@ export function SettingsPage({ theme, onThemeToggle }: SettingsPageProps) {
           {activeTab === "sms" && (
             <Card className="p-6 space-y-4">
               <h2 className="text-base font-semibold text-foreground">SMS Configuration</h2>
+              <Select
+                label="Active SMS Gateway Provider"
+                value={settings.gateway || "NOTIFY"}
+                onChange={handleGatewayChange}
+              >
+                <option value="NOTIFY">Notify.lk (Sri Lanka)</option>
+                <option value="SMSLENZ">SMSlenz.lk (Sri Lanka)</option>
+              </Select>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Input
+                  label="API User ID / Account SID"
+                  value={settings.apiKey || ""}
+                  onChange={upd("apiKey")}
+                  placeholder="Enter User ID or Key"
+                />
+                <Input
+                  label="API Secret / Token"
+                  type="password"
+                  value={settings.apiSecret || ""}
+                  onChange={upd("apiSecret")}
+                  placeholder="Enter API Secret Key"
+                />
+              </div>
+
               <Select
                 label="Default Sender ID"
                 value={settings.defaultSenderId}

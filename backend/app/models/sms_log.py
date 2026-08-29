@@ -41,6 +41,15 @@ class SMSLog(Base):
     )
     
     error_message: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    
+    # Enterprise Enhancements
+    gateway_message_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    sender_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    route: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    gateway_response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    error_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

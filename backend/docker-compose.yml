@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:16-alpine
-    container_name: sms_db
+    container_name: BULK_SMS-db
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -16,14 +14,14 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: sms_redis
+    container_name: BULK_SMS-redis
     restart: always
     ports:
       - "6379:6379"
 
   web:
     build: .
-    container_name: sms_api
+    container_name: BULK_SMS-backend
     restart: always
     ports:
       - "8000:8000"
@@ -34,6 +32,8 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     env_file:
       - .env
+    volumes:
+      - .:/backend
     depends_on:
       - db
       - redis
@@ -41,7 +41,7 @@ services:
 
   celery_worker:
     build: .
-    container_name: sms_worker
+    container_name: BULK_SMS-worker
     restart: always
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-bulk_sms_db}
@@ -50,6 +50,8 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     env_file:
       - .env
+    volumes:
+      - .:/backend
     depends_on:
       - db
       - redis

@@ -143,9 +143,8 @@ export const MOCK_REPORTS: DeliveryReport[] = [
 ];
 
 export const MOCK_SENDER_IDS: SenderId[] = [
-  { id: "sid_01", value: "CAFECHAI", status: "APPROVED" },
-  { id: "sid_02", value: "NOTIFY",   status: "APPROVED" },
-  { id: "sid_03", value: "PROMO-LK", status: "APPROVED" },
+  { id: "sid_01", value: "SMSlenzDEMO", status: "APPROVED" },
+  { id: "sid_02", value: "NotifyDEMO", status: "APPROVED" },
 ];
 
 export const MOCK_ROUTES: SMSRoute[] = [
@@ -159,7 +158,9 @@ export const MOCK_SETTINGS: AppSettings = {
   defaultCountry: "Sri Lanka",
   defaultCountryCode: "+94",
   timezone: "Asia/Colombo",
-  defaultSenderId: "CAFECHAI",
+  defaultSenderId: "NotifyDEMO",
   defaultRoute: "Premium Route",
   smsBalanceWarningThreshold: 5000,
+  smsBalance: 15000,
+  gateway: "NOTIFY",
 };

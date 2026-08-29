@@ -11,6 +11,7 @@ import { SendSMSPage } from "../features/smsGateway/pages/SendSMSPage";
 import { ContactsPage } from "../features/contacts/pages/ContactsPage";
 import { TemplatesPage } from "../features/templates/pages/TemplatesPage";
 import { DeliveryReportsPage } from "../features/reports/pages/DeliveryReportsPage";
+import { UsersPage } from "../features/users/pages/UsersPage";
 import { SettingsPage } from "../features/settings/pages/SettingsPage";
 import { toast } from "sonner";
 import { websocketService } from "../services/websocket";
@@ -95,6 +96,7 @@ export default function App() {
                   <Route path="/contacts"               element={<ContactsPage />} />
                   <Route path="/templates"              element={<TemplatesPage />} />
                   <Route path="/reports"                element={<DeliveryReportsPage />} />
+                  <Route path="/users"                  element={<UsersPage />} />
                   <Route path="/settings"               element={<SettingsPage theme={theme} onThemeToggle={toggleTheme} />} />
                   <Route path="*"                       element={<Navigate to="/dashboard" replace />} />
                 </Routes>

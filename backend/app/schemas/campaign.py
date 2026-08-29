@@ -7,7 +7,7 @@ from app.models.campaign import CampaignStatus, DeliveryStatus
 
 class CampaignBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
-    sender_id: str = Field("CAFECHAI", min_length=2, max_length=50, validation_alias="senderId", serialization_alias="senderId")
+    sender_id: str = Field("NotifyDEMO", min_length=2, max_length=50, validation_alias="senderId", serialization_alias="senderId")
     message: str = Field(..., min_length=1)
     route: str = Field("Default Route", min_length=2, max_length=50)
 
@@ -17,7 +17,7 @@ class RecipientManual(BaseModel):
 
 class CampaignCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
-    sender_id: str = Field("CAFECHAI", validation_alias="senderId")
+    sender_id: str = Field("NotifyDEMO", validation_alias="senderId")
     message: str = Field(..., min_length=1)
     recipient_source: str = Field("GROUPS", validation_alias="recipientSource")
     route_id: str = Field("Default Route", validation_alias="routeId")
@@ -39,6 +39,9 @@ class CampaignRecipientResponse(BaseModel):
     status: DeliveryStatus
     error_message: Optional[str] = None
     sms_units: int
+    gateway_message_id: Optional[str] = Field(None, serialization_alias="gatewayMessageId")
+    gateway_response: Optional[str] = Field(None, serialization_alias="gatewayResponse")
+    error_code: Optional[str] = Field(None, serialization_alias="errorCode")
 
     class Config:
         from_attributes = True
@@ -57,6 +60,15 @@ class CampaignResponse(BaseModel):
     sms_units: int = Field(..., serialization_alias="smsUnits")
     route: str
     
+    template: Optional[str] = None
+    created_by: Optional[str] = Field(None, serialization_alias="createdBy")
+    gateway: Optional[str] = "Notify.lk"
+    queue_id: Optional[str] = Field(None, serialization_alias="queueId")
+    message_ids: List[str] = Field(default_factory=list, serialization_alias="messageIds")
+    retry_count: int = Field(0, serialization_alias="retryCount")
+    progress: Optional[dict] = None
+    status_breakdown: Optional[dict] = Field(None, serialization_alias="statusBreakdown")
+
     scheduled_at: Optional[datetime] = Field(None, serialization_alias="scheduledAt")
     sent_at: Optional[datetime] = Field(None, serialization_alias="sentAt")
     created_at: datetime = Field(..., serialization_alias="createdAt")

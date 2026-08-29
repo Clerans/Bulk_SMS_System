@@ -5,12 +5,24 @@ export type CampaignStatus =
   | "SCHEDULED"
   | "QUEUED"
   | "PROCESSING"
+  | "ACCEPTED"
   | "COMPLETED"
   | "PARTIALLY_FAILED"
   | "FAILED"
   | "CANCELLED";
 
-export type DeliveryStatus = "PENDING" | "QUEUED" | "SENT" | "DELIVERED" | "FAILED";
+export type DeliveryStatus =
+  | "PENDING"
+  | "QUEUED"
+  | "PROCESSING"
+  | "ACCEPTED"
+  | "SUBMITTED"
+  | "SENT"
+  | "DELIVERED"
+  | "READ"
+  | "FAILED"
+  | "EXPIRED"
+  | "REJECTED";
 
 export type ContactStatus = "ACTIVE" | "UNSUBSCRIBED" | "BLACKLISTED" | "INVALID";
 
@@ -18,13 +30,36 @@ export type RecipientSource = "CSV" | "GROUPS" | "MANUAL";
 
 export type TemplateCategory = "Marketing" | "Transactional" | "Reminder" | "Notification" | "OTP";
 
-export type UserRole = "ADMIN" | "OPERATOR";
+export type UserRole = "SUPERADMIN" | "ADMIN" | "MANAGER" | "OPERATOR" | "VIEWER";
+export type UserStatus = "ACTIVE" | "INACTIVE";
 
 export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   role: UserRole;
+  status?: UserStatus;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CreateUserRequest {
+  name: string;
+  email: string;
+  phone?: string;
+  password: string;
+  role: UserRole;
+  status: UserStatus;
+}
+
+export interface UpdateUserRequest {
+  name?: string;
+  email?: string;
+  phone?: string;
+  password?: string;
+  role?: UserRole;
+  status?: UserStatus;
 }
 
 export interface AuthState {
@@ -46,6 +81,20 @@ export interface Campaign {
   pendingCount: number;
   smsUnits: number;
   route: string;
+  template?: string | null;
+  createdBy?: string | null;
+  gateway?: string | null;
+  queueId?: string | null;
+  messageIds?: string[];
+  retryCount?: number;
+  progress?: {
+    percentage: number;
+    sent: number;
+    delivered: number;
+    failed: number;
+    pending: number;
+  };
+  statusBreakdown?: Record<string, number>;
   scheduledAt: string | null;
   sentAt: string | null;
   createdAt: string;
@@ -99,6 +148,12 @@ export interface DeliveryReport {
   sentAt: string;
   deliveredAt: string | null;
   failureReason: string | null;
+  gatewayMessageId?: string | null;
+  senderId?: string | null;
+  route?: string | null;
+  gatewayResponse?: string | null;
+  errorCode?: string | null;
+  errorDescription?: string | null;
 }
 
 export interface DashboardSummary {

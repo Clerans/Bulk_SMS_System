@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from "react-router";
 import {
   LayoutDashboard, Send, List, Users, FileText, BarChart2, Settings,
-  ChevronLeft, ChevronRight, LogOut, MessageSquare,
+  ChevronLeft, ChevronRight, LogOut, MessageSquare, UserCog,
 } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import type { User } from "../../../types/common";
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { path: "/contacts",   label: "Contacts",         icon: Users           },
   { path: "/templates",  label: "Templates",        icon: FileText        },
   { path: "/reports",    label: "Delivery Reports", icon: BarChart2       },
+  { path: "/users",      label: "Users",            icon: UserCog         },
 ];
 
 interface SidebarProps {

@@ -13,8 +13,17 @@ export const templateService = {
       category: data.category,
       message: data.message,
     };
-    const res = await axiosInstance.post<SMSTemplate>("/templates", payload);
-    return res.data;
+    const res = await axiosInstance.post<any>("/templates", payload);
+    return res.data?.data || res.data;
+  },
+
+  async updateTemplate(id: string, data: Partial<Omit<SMSTemplate, "id" | "createdAt">>): Promise<SMSTemplate> {
+    const payload: any = {};
+    if (data.name !== undefined) payload.title = data.name;
+    if (data.category !== undefined) payload.category = data.category;
+    if (data.message !== undefined) payload.message = data.message;
+    const res = await axiosInstance.put<any>(`/templates/${id}`, payload);
+    return res.data?.data || res.data;
   },
 
   async deleteTemplate(id: string): Promise<void> {

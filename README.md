@@ -13,6 +13,9 @@ The project designs and Figma mockups can be found here:
 * [Frontend](file:///c:/Users/micha/Desktop/Personal%20project/Bulk_SMS_System/Frontend): React + Vite + Tailwind CSS / Material UI dashboard. See [Frontend README.md](file:///c:/Users/micha/Desktop/Personal%20project/Bulk_SMS_System/Frontend/README.md).
 * [backend](file:///c:/Users/micha/Desktop/Personal%20project/Bulk_SMS_System/backend): Python FastAPI + PostgreSQL + Celery/Redis backend. See [backend README.md](file:///c:/Users/micha/Desktop/Personal%20project/Bulk_SMS_System/backend/README.md).
 
+## Quick Reference
+For detailed step-by-step instructions on running the entire system (Frontend, Backend, Celery Worker, Redis, and Troubleshooting), see the **[RUN_GUIDE.md](file:///c:/Users/micha/OneDrive/Desktop/Personal%20project/Bulk_SMS_System/RUN_GUIDE.md)**.
+
 ---
 
 ## Setup & Running Guide

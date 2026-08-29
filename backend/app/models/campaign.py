@@ -13,6 +13,7 @@ class CampaignStatus(str, enum.Enum):
     SCHEDULED = "SCHEDULED"
     QUEUED = "QUEUED"
     PROCESSING = "PROCESSING"
+    ACCEPTED = "ACCEPTED"
     COMPLETED = "COMPLETED"
     PARTIALLY_FAILED = "PARTIALLY_FAILED"
     FAILED = "FAILED"
@@ -21,9 +22,15 @@ class CampaignStatus(str, enum.Enum):
 class DeliveryStatus(str, enum.Enum):
     PENDING = "PENDING"
     QUEUED = "QUEUED"
+    PROCESSING = "PROCESSING"
+    ACCEPTED = "ACCEPTED"
+    SUBMITTED = "SUBMITTED"
     SENT = "SENT"
     DELIVERED = "DELIVERED"
+    READ = "READ"
     FAILED = "FAILED"
+    EXPIRED = "EXPIRED"
+    REJECTED = "REJECTED"
 
 class Campaign(Base, TimestampMixin, SoftDeleteMixin):
     """
@@ -43,7 +50,7 @@ class Campaign(Base, TimestampMixin, SoftDeleteMixin):
         ForeignKey("templates.id", ondelete="SET NULL"),
         nullable=True
     )
-    sender_id: Mapped[str] = mapped_column(String(50), nullable=False, default="CAFECHAI")
+    sender_id: Mapped[str] = mapped_column(String(50), nullable=False, default="NotifyDEMO")
     message: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[CampaignStatus] = mapped_column(
         Enum(CampaignStatus, name="campaign_status_enum"),
@@ -59,6 +66,11 @@ class Campaign(Base, TimestampMixin, SoftDeleteMixin):
     sms_units: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     route: Mapped[str] = mapped_column(String(50), nullable=False, default="Default Route")
     
+    # Enterprise Enhancements
+    gateway: Mapped[str | None] = mapped_column(String(50), nullable=True, default="Notify.lk")
+    queue_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     scheduled_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     
@@ -106,6 +118,11 @@ class CampaignRecipient(Base):
     )
     error_message: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sms_units: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+    # Enterprise Enhancements
+    gateway_message_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    gateway_response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Relationships
     campaign = relationship("Campaign", back_populates="recipients")

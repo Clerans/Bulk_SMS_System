@@ -18,10 +18,25 @@ def publish_event(event_name: str, data: dict):
         # Safe fallback printing
         print(f"[REDIS EVENT PUBLISH ERROR] {e}")
 
-def broadcast_campaign_progress(campaign_id: str, progress: int):
+def broadcast_campaign_progress(
+    campaign_id: str,
+    progress: float,
+    recipient_count: int = 0,
+    sent_count: int = 0,
+    delivered_count: int = 0,
+    failed_count: int = 0,
+    pending_count: int = 0,
+    status: str = "PROCESSING"
+):
     publish_event("campaign_progress", {
         "campaignId": campaign_id,
-        "progress": progress
+        "progress": progress,
+        "recipientCount": recipient_count,
+        "sentCount": sent_count,
+        "deliveredCount": delivered_count,
+        "failedCount": failed_count,
+        "pendingCount": pending_count,
+        "status": status
     })
 
 def broadcast_dashboard_update(today: int, failed: int, queued: int):
