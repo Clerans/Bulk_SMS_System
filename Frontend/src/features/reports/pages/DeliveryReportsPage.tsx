@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Download, BarChart2, Filter } from "lucide-react";
+import { Download, BarChart2, Filter, RotateCw } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { PageHeader } from "../../../components/ui/PageHeader";
 import { Button } from "../../../components/ui/Button";
@@ -25,10 +25,37 @@ export function DeliveryReportsPage() {
   const [phoneFilter, setPhoneFilter]   = useState<string>("");
   const [startDate, setStartDate]       = useState<string>("");
   const [endDate, setEndDate]           = useState<string>("");
+  const [retryingId, setRetryingId]     = useState<string | null>(null);
 
   useEffect(() => {
-    reportsService.getReports().then(setReports);
+    loadReports();
   }, []);
+
+  async function loadReports() {
+    try {
+      const data = await reportsService.getReports();
+      setReports(data);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleRetry(id: string) {
+    setRetryingId(id);
+    try {
+      const updated = await reportsService.retryMessage(id);
+      setReports((prev) => prev.map((r) => (r.id === id ? { ...r, ...updated } : r)));
+      if (updated.status === "DELIVERED" || updated.status === "SENT" || updated.status === "ACCEPTED") {
+        toast.success("Message retry dispatched successfully!");
+      } else {
+        toast.error(`Message retry failed: ${updated.failureReason || updated.errorDescription || "Gateway rejected"}`);
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to retry sending message.");
+    } finally {
+      setRetryingId(null);
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -177,7 +204,7 @@ export function DeliveryReportsPage() {
                   <tr className="border-b border-border">
                     {[
                       "Campaign", "Phone", "Status", "Gateway Message ID", "Sender ID",
-                      "Route", "Gateway Response", "Error Code", "Error Description", "Sent At", "Delivered At"
+                      "Route", "Gateway Response", "Error Code", "Error Description", "Sent At", "Delivered At", "Action"
                     ].map((h) => (
                       <th key={h} className="text-left px-3 py-3 text-xs font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                     ))}
@@ -206,6 +233,29 @@ export function DeliveryReportsPage() {
                       </td>
                       <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">
                         {r.deliveredAt ? format(parseISO(r.deliveredAt), "MMM d HH:mm:ss") : "—"}
+                      </td>
+                      <td className="px-3 py-3 text-right whitespace-nowrap">
+                        {r.status === "FAILED" ? (
+                          <button
+                            onClick={() => handleRetry(r.id)}
+                            disabled={retryingId === r.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800 transition-colors disabled:opacity-50"
+                            title="Retry sending failed message"
+                          >
+                            <RotateCw className={`w-3 h-3 ${retryingId === r.id ? "animate-spin" : ""}`} />
+                            <span>{retryingId === r.id ? "Retrying..." : "Retry"}</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleRetry(r.id)}
+                            disabled={retryingId === r.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-border/50 transition-colors disabled:opacity-50"
+                            title="Resend message"
+                          >
+                            <RotateCw className={`w-3 h-3 ${retryingId === r.id ? "animate-spin" : ""}`} />
+                            <span>{retryingId === r.id ? "Sending..." : "Resend"}</span>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

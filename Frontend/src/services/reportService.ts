@@ -7,6 +7,11 @@ export const reportService = {
     return Array.isArray(res.data) ? res.data : (res.data?.items ?? []);
   },
 
+  async retryMessage(id: string): Promise<DeliveryReport> {
+    const res = await axiosInstance.post<any>(`/delivery-reports/${id}/retry`);
+    return res.data?.data || res.data;
+  },
+
   async exportCsv(): Promise<void> {
     window.open(`${axiosInstance.defaults.baseURL}/delivery-reports/export`);
   },

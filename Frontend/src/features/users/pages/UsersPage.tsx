@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Trash2, Users, Shield, ShieldCheck, ShieldAlert, UserCheck } from "lucide-react";
+import { Plus, Trash2, Users, Shield, ShieldCheck, ShieldAlert, UserCheck, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "../../../components/ui/PageHeader";
 import { Button } from "../../../components/ui/Button";
@@ -9,6 +9,7 @@ import { SearchBar } from "../../../components/common/SearchBar";
 import { EmptyState } from "../../../components/common/EmptyState";
 import { ConfirmDialog } from "../../../components/common/ConfirmDialog";
 import { AddUserModal } from "../components/AddUserModal";
+import { EditUserModal } from "../components/EditUserModal";
 import { userService } from "../../../services/userService";
 import { useAuth } from "../../auth/hooks/useAuth";
 import type { User as UserType, UserRole } from "../../../types/common";
@@ -35,6 +36,7 @@ export function UsersPage() {
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserType | null>(null);
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -69,6 +71,10 @@ export function UsersPage() {
 
   function handleUserAdded(newUser: UserType) {
     setUsers((prev) => [newUser, ...prev]);
+  }
+
+  function handleUserUpdated(updatedUser: UserType) {
+    setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
   }
 
   async function handleDelete(id: string) {
@@ -204,24 +210,35 @@ export function UsersPage() {
                       <td className="px-4 py-3 text-muted-foreground">
                         {u.created_at ? format(parseISO(u.created_at), "MMM d, yyyy") : "—"}
                       </td>
-                      <td className="px-4 py-3">
-                        {delPerm.allowed ? (
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => setDeleteUserId(u.id)}
-                            aria-label={`Remove ${u.name}`}
-                            className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                            onClick={() => setEditingUser(u)}
+                            aria-label={`Edit ${u.name}`}
+                            className="p-1.5 rounded hover:bg-muted/40 text-muted-foreground hover:text-foreground transition-colors"
+                            title="Edit User"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Pencil className="w-3.5 h-3.5" />
                           </button>
-                        ) : (
-                          <button
-                            disabled
-                            title={delPerm.reason}
-                            className="p-1.5 text-muted-foreground/30 cursor-not-allowed"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                          {delPerm.allowed ? (
+                            <button
+                              onClick={() => setDeleteUserId(u.id)}
+                              aria-label={`Remove ${u.name}`}
+                              className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                              title="Delete User"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <button
+                              disabled
+                              title={delPerm.reason}
+                              className="p-1.5 text-muted-foreground/30 cursor-not-allowed"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -240,6 +257,15 @@ export function UsersPage() {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onUserAdded={handleUserAdded}
+        currentUserRole={currentUser?.role}
+      />
+
+      {/* Edit User Modal */}
+      <EditUserModal
+        isOpen={!!editingUser}
+        onClose={() => setEditingUser(null)}
+        user={editingUser}
+        onUserUpdated={handleUserUpdated}
         currentUserRole={currentUser?.role}
       />
 
