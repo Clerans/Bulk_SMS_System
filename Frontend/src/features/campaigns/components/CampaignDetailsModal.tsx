@@ -1,5 +1,6 @@
+import { createPortal } from "react-dom";
 import { format, parseISO } from "date-fns";
-import { X, CheckCircle2, XCircle, Users, Zap, Clock, Server, ArrowRight, ShieldCheck, Activity } from "lucide-react";
+import { X, CheckCircle2, Users, Zap, Clock, Server, ShieldCheck, Activity } from "lucide-react";
 import { Badge } from "../../../components/ui/Badge";
 import { Card } from "../../../components/ui/Card";
 import { ProgressBar } from "../../../components/ui/Progress";
@@ -33,9 +34,14 @@ export function CampaignDetailsModal({ campaign: c, open, onClose }: CampaignDet
 
   const messageIds = c.messageIds || [];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-card border border-border rounded-xl shadow-2xl p-6 space-y-6">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/55 backdrop-blur-[2px]"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="relative w-full max-w-4xl max-h-[85vh] overflow-y-auto bg-card border border-border rounded-2xl shadow-2xl p-6 sm:p-8 space-y-6 animate-in zoom-in-95 duration-150">
         
         {/* Header */}
         <div className="flex items-start justify-between border-b border-border pb-4">
@@ -166,14 +172,15 @@ export function CampaignDetailsModal({ campaign: c, open, onClose }: CampaignDet
         <div className="flex justify-end pt-4 border-t border-border">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-muted text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
+            className="px-5 py-2.5 text-sm font-medium rounded-xl bg-primary text-primary-foreground hover:bg-[#003840] transition-colors cursor-pointer"
           >
             Close
           </button>
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
