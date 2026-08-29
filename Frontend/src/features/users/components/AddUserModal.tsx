@@ -19,6 +19,7 @@ interface AddUserModalProps {
 export function AddUserModal({ isOpen, onClose, onUserAdded, currentUserRole }: AddUserModalProps) {
   const [form, setForm] = useState({
     username: "",
+    email: "",
     phone: "",
     password: "",
     confirmPassword: "",
@@ -36,7 +37,11 @@ export function AddUserModal({ isOpen, onClose, onUserAdded, currentUserRole }: 
     setFormError("");
 
     if (!form.username.trim()) {
-      setFormError("Full Name / Username is required.");
+      setFormError("User Name is required.");
+      return;
+    }
+    if (!form.email.trim() || !form.email.includes("@")) {
+      setFormError("A valid Email address is required.");
       return;
     }
     if (!form.phone.trim()) {
@@ -45,7 +50,7 @@ export function AddUserModal({ isOpen, onClose, onUserAdded, currentUserRole }: 
     }
     const cleanPhone = form.phone.replace(/[^\d]/g, "");
     if (cleanPhone.length !== 10 || !cleanPhone.startsWith("0")) {
-      setFormError("Enter 10-digit number starting with 0 (e.g. 0776367356).");
+      setFormError("Enter 10-digit phone number starting with 0 (e.g. 0776367356).");
       return;
     }
     if (!form.password) {
@@ -67,10 +72,9 @@ export function AddUserModal({ isOpen, onClose, onUserAdded, currentUserRole }: 
 
     setLoading(true);
     try {
-      const email = form.username.includes("@") ? form.username.trim() : `${form.username.trim()}@branch.lk`;
       const newUser = await userService.createUser({
         name: form.username.trim(),
-        email: email,
+        email: form.email.trim().toLowerCase(),
         phone: form.phone.trim(),
         password: form.password,
         role: form.role as UserRole,
@@ -80,7 +84,7 @@ export function AddUserModal({ isOpen, onClose, onUserAdded, currentUserRole }: 
       toast.success(`User "${form.username}" created successfully.`);
       onUserAdded(newUser);
       onClose();
-      setForm({ username: "", phone: "", password: "", confirmPassword: "", role: "", status: "ACTIVE" });
+      setForm({ username: "", email: "", phone: "", password: "", confirmPassword: "", role: "", status: "ACTIVE" });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to create user.";
       setFormError(msg);
@@ -100,7 +104,7 @@ export function AddUserModal({ isOpen, onClose, onUserAdded, currentUserRole }: 
         }
       }}
     >
-      <Card className="w-full max-w-md p-6 shadow-2xl border border-border animate-in zoom-in-95 duration-150">
+      <Card className="w-full max-w-md p-6 shadow-2xl border border-border animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
         <h3 className="text-base font-semibold text-foreground mb-4">Add User</h3>
         <div className="space-y-4">
           <Input
@@ -108,6 +112,13 @@ export function AddUserModal({ isOpen, onClose, onUserAdded, currentUserRole }: 
             placeholder="Enter Your Username"
             value={form.username}
             onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))}
+          />
+          <Input
+            label="Email Address"
+            type="email"
+            placeholder="akash@cafechai.lk"
+            value={form.email}
+            onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
           />
           <Input
             label="Phone Number"

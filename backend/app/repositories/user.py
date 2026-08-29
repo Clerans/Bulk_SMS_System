@@ -24,6 +24,21 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
         result = await db.execute(query)
         return result.scalars().first()
 
+    async def get_by_username_or_email(self, db: AsyncSession, identifier: str) -> Optional[User]:
+        """
+        Retrieve a user record matching the given username or email address.
+        """
+        from sqlalchemy import or_
+        query = select(self.model).where(
+            or_(
+                self.model.email.ilike(identifier.strip()),
+                self.model.name.ilike(identifier.strip())
+            ),
+            self.model.is_deleted == False
+        )
+        result = await db.execute(query)
+        return result.scalars().first()
+
     async def search_users(
         self,
         db: AsyncSession,

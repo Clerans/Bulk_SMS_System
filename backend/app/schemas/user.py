@@ -38,7 +38,7 @@ class UserResponse(BaseModel):
 
 # Auth / Token Schemas
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str = Field(..., description="Username or Email address")
     password: str
 
 class Token(BaseModel):

@@ -100,6 +100,8 @@ async def update_user(
         
     update_data = data.model_dump(exclude_unset=True)
     if "password" in update_data and update_data["password"]:
+        if not is_superadmin:
+            raise ForbiddenException(message="Only Super Admin has permission to change user passwords")
         update_data["password"] = hash_password(update_data["password"])
         
     if "email" in update_data and update_data["email"]:
