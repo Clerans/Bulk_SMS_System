@@ -10,29 +10,49 @@ from app.repositories.user import user_repository
 async def seed_users(db: AsyncSession) -> None:
     logger.info("Seeding default users...")
     
-    # 1. Default Admin User
+    # 1. Default Super Admin User
     admin_email = "anika@cafechai.lk"
     admin = await user_repository.get_by_email(db, email=admin_email)
     if not admin:
         admin_data = {
-            "name": "Anika Perera",
+            "name": "Super Admin",
             "email": admin_email,
+            "phone": "0772451682",
+            "password": hash_password("admin123"),
+            "role": UserRole.SUPERADMIN,
+            "status": UserStatus.ACTIVE
+        }
+        await user_repository.create(db, obj_in=admin_data)
+        logger.info(f"Created default Super Admin user: {admin_email}")
+    else:
+        admin.role = UserRole.SUPERADMIN
+        admin.name = "Super Admin"
+        await db.commit()
+        logger.info(f"Super Admin user verified: {admin_email}")
+
+    # 2. Default Branch Admin User
+    branch_admin_email = "admin@cafechai.lk"
+    b_admin = await user_repository.get_by_email(db, email=branch_admin_email)
+    if not b_admin:
+        b_admin_data = {
+            "name": "Branch Admin",
+            "email": branch_admin_email,
+            "phone": "0771234567",
             "password": hash_password("admin123"),
             "role": UserRole.ADMIN,
             "status": UserStatus.ACTIVE
         }
-        await user_repository.create(db, obj_in=admin_data)
-        logger.info(f"Created default Admin user: {admin_email}")
-    else:
-        logger.info(f"Admin user already exists: {admin_email}")
+        await user_repository.create(db, obj_in=b_admin_data)
+        logger.info(f"Created default Admin user: {branch_admin_email}")
 
-    # 2. Default Operator User
+    # 3. Default Operator User
     operator_email = "operator@cafechai.lk"
     operator = await user_repository.get_by_email(db, email=operator_email)
     if not operator:
         operator_data = {
             "name": "Dilshan Silva",
             "email": operator_email,
+            "phone": "0779876543",
             "password": hash_password("operator123"),
             "role": UserRole.OPERATOR,
             "status": UserStatus.ACTIVE
