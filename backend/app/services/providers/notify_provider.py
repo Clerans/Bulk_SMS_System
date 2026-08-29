@@ -143,12 +143,17 @@ class NotifySMSProvider(SMSProvider):
 
     def _format_phone_for_notify(self, phone: str) -> str:
         """
-        Notify.lk accepts 07XXXXXXXX or 947XXXXXXXX or +947XXXXXXXX format.
-        Converts +947XXXXXXXX -> 07XXXXXXXX for compatibility.
+        Notify.lk API strictly requires an 11-digit number in the format 947XXXXXXXX (without '+' or leading '0').
+        Converts +947XXXXXXXX or 07XXXXXXXX -> 947XXXXXXXX.
         """
-        if phone.startswith("+94"):
-            return "0" + phone[3:]
-        return phone
+        cleaned = re.sub(r"[^\d]", "", str(phone).strip())
+        if cleaned.startswith("0") and len(cleaned) == 10:
+            return "94" + cleaned[1:]
+        elif cleaned.startswith("94") and len(cleaned) == 11:
+            return cleaned
+        elif len(cleaned) == 9 and cleaned.startswith("7"):
+            return "94" + cleaned
+        return cleaned
 
     async def send_sms(
         self,

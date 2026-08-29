@@ -56,6 +56,31 @@ export function SettingsPage({ theme, onThemeToggle }: SettingsPageProps) {
     }
   };
 
+  const handleGatewayChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedGw = e.target.value;
+    if (!settings) return;
+
+    if (selectedGw === "NOTIFY") {
+      setSettings({
+        ...settings,
+        gateway: "NOTIFY",
+        apiKey: "anika@cafechai.lk",
+        apiSecret: "e527d2cfaee741639d6cfef16ebf09b5",
+        defaultSenderId: "NotifyDEMO",
+        senderId: "NotifyDEMO",
+      });
+    } else if (selectedGw === "SMSLENZ") {
+      setSettings({
+        ...settings,
+        gateway: "SMSLENZ",
+        apiKey: "anika@cafechai.lk",
+        apiSecret: "e527d2cfaee741639d6cfef16ebf09b5",
+        defaultSenderId: "SMSlenzDEMO",
+        senderId: "SMSlenzDEMO",
+      });
+    }
+  };
+
   if (loading || !settings) {
     return (
       <div className="p-8 text-center text-muted-foreground text-sm">
@@ -116,7 +141,7 @@ export function SettingsPage({ theme, onThemeToggle }: SettingsPageProps) {
               <Select
                 label="Active SMS Gateway Provider"
                 value={settings.gateway || "NOTIFY"}
-                onChange={upd("gateway")}
+                onChange={handleGatewayChange}
               >
                 <option value="NOTIFY">Notify.lk (Sri Lanka)</option>
                 <option value="SMSLENZ">SMSlenz.lk (Sri Lanka)</option>
