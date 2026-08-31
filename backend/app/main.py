@@ -12,9 +12,9 @@ setup_logging()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    docs_url=f"{settings.API_V1_STR}/docs",
-    redoc_url=f"{settings.API_V1_STR}/redoc",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 # Register exception handlers
@@ -105,6 +105,22 @@ async def add_security_headers_and_log(request: Request, call_next):
     )
     return response
 
+@app.get("/", tags=["Health"])
+def root_endpoint():
+    """
+    Root endpoint returning service status.
+    """
+    return {
+        "success": True,
+        "message": "Enterprise SMS Campaign Management API is running",
+        "data": {
+            "status": "online",
+            "docs": "/docs",
+            "project_name": settings.PROJECT_NAME
+        },
+        "errors": None
+    }
+
 @app.get("/health", tags=["Health"])
 def health_check():
     """
@@ -126,9 +142,14 @@ from app.websocket.manager import manager as ws_manager
 async def startup_event():
     gateway_name = getattr(settings, "SMS_GATEWAY", "SMSLENZ")
     logger.info(f"Current Gateway = {gateway_name}")
-    print(f"Current Gateway = {gateway_name}")
-    await ws_manager.start_redis_listener()
+    try:
+        await ws_manager.start_redis_listener()
+    except Exception as e:
+        logger.warning(f"WebSocket Redis listener startup skipped: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    await ws_manager.stop_redis_listener()
+    try:
+        await ws_manager.stop_redis_listener()
+    except Exception:
+        pass

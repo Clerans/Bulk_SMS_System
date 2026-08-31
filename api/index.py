@@ -1,15 +1,16 @@
 import sys
 import os
 
-# Add backend directory to sys.path for runtime execution
-root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-backend_dir = os.path.join(root_dir, "backend")
+# Ensure root and backend directory paths are in sys.path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+backend_dir = os.path.join(parent_dir, "backend")
 
-if os.path.exists(backend_dir) and backend_dir not in sys.path:
-    sys.path.insert(0, backend_dir)
+for path in [parent_dir, backend_dir, current_dir]:
+    if os.path.exists(path) and path not in sys.path:
+        sys.path.insert(0, path)
 
 try:
-    from backend.app.main import app
-except ImportError:
-    from app.main import app  # type: ignore
-
+    from app.main import app
+except Exception:
+    from backend.app.main import app  # type: ignore

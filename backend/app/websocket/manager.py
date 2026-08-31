@@ -47,21 +47,30 @@ class ConnectionManager:
     async def start_redis_listener(self):
         """
         Starts a background task that listens to Redis Pub/Sub channel and broadcasts to clients.
+        Fails gracefully if Redis is unavailable (e.g. serverless environments without local Redis).
         """
-        logger.info("[WS MANAGER] Starting Redis Pub/Sub broadcast listener...")
+        logger.info("[WS MANAGER] Initializing Redis Pub/Sub broadcast listener...")
         try:
-            self.redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+            self.redis_client = aioredis.from_url(
+                settings.REDIS_URL,
+                decode_responses=True,
+                socket_connect_timeout=2.0,
+                socket_timeout=2.0
+            )
             self.pubsub = self.redis_client.pubsub()
             await self.pubsub.subscribe("sms_ws_broadcast")
             
             self.listener_task = asyncio.create_task(self._redis_message_loop())
+            logger.info("[WS MANAGER] Redis broadcast listener successfully subscribed.")
         except Exception as e:
-            logger.error(f"[WS MANAGER] Failed to initialize Redis Listener: {e}")
+            logger.warning(f"[WS MANAGER] Redis broadcast listener disabled (Redis unavailable): {e}")
+            self.redis_client = None
+            self.pubsub = None
 
     async def _redis_message_loop(self):
         logger.info("[WS MANAGER] Redis message loop started.")
         try:
-            while True:
+            while self.pubsub:
                 message = await self.pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
                 if message and message.get("type") == "message":
                     data = message.get("data")
@@ -71,14 +80,11 @@ class ConnectionManager:
                             await self.broadcast(event_data)
                         except Exception as e:
                             logger.error(f"[WS MANAGER] Error decoding/broadcasting event: {e}")
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0.05)
         except asyncio.CancelledError:
             logger.info("[WS MANAGER] Redis listener message loop cancelled.")
         except Exception as e:
-            logger.error(f"[WS MANAGER] Exception in Redis message loop: {e}")
-            # Try to reconnect after a short delay
-            await asyncio.sleep(3)
-            asyncio.create_task(self.start_redis_listener())
+            logger.warning(f"[WS MANAGER] Redis message loop ended: {e}")
 
     async def stop_redis_listener(self):
         if self.listener_task:
@@ -87,11 +93,14 @@ class ConnectionManager:
                 await self.listener_task
             except asyncio.CancelledError:
                 pass
-        if self.pubsub:
-            await self.pubsub.unsubscribe("sms_ws_broadcast")
-            await self.pubsub.close()
-        if self.redis_client:
-            await self.redis_client.close()
+        try:
+            if self.pubsub:
+                await self.pubsub.unsubscribe("sms_ws_broadcast")
+                await self.pubsub.close()
+            if self.redis_client:
+                await self.redis_client.close()
+        except Exception:
+            pass
         logger.info("[WS MANAGER] Redis listener stopped.")
 
 manager = ConnectionManager()
