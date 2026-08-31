@@ -26,7 +26,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       { percent: 10, text: "Verifying credentials... SSL/TLS Handshake" },
       { percent: 35, text: "Authenticating token sequence... Authorizing" },
       { percent: 65, text: "Initiating SMS gateway channels... Ready" },
-      { percent: 85, text: "Synchronizing Cafe Chai localized segment data..." },
+      { percent: 85, text: "Synchronizing localized recipient segment data..." },
       { percent: 100, text: "Handshake completed. Redirecting to workspace..." }
     ];
 
@@ -94,7 +94,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
               {/* Title & Subtitle */}
               <h1 className="text-white text-3xl font-extrabold tracking-tight">SMSBlast</h1>
-              <p className="text-brand-100/90 text-xs tracking-wider uppercase font-semibold mt-1">Cafe Management System</p>
+              <p className="text-brand-100/90 text-xs tracking-wider uppercase font-semibold mt-1">Bulk SMS System</p>
             </div>
 
             {/* Form & Actions Body */}
@@ -186,7 +186,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
           {/* Footer system details */}
           <div className="mt-8 text-center text-xs text-slate-400 font-semibold space-y-1 z-10">
-            <p>&copy; 2026 SMSBlast Cafe Management System</p>
+            <p>&copy; 2026 SMSBlast Bulk SMS System</p>
             <div className="flex items-center justify-center gap-3 text-[11px] text-slate-400">
               <span className="flex items-center gap-1">
                 <i className="fa-solid fa-shield-halved text-brand"></i>
