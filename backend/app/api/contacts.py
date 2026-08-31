@@ -24,7 +24,7 @@ async def get_contacts(
     group_name: Optional[str] = Query(None, alias="group"),
     status_filter: Optional[ContactStatus] = Query(None, alias="status"),
     sort_by: Optional[str] = Query(None),
-    sort_order: str = Query("desc", regex="^(asc|desc)$"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -196,7 +196,7 @@ async def export_contacts(
     search: Optional[str] = Query(None),
     group_name: Optional[str] = Query(None, alias="group"),
     status_filter: Optional[ContactStatus] = Query(None, alias="status"),
-    export_format: str = Query("csv", regex="^(csv|excel)$", alias="format"),
+    export_format: str = Query("csv", pattern="^(csv|excel)$", alias="format"),
     db: AsyncSession = Depends(get_db)
 ):
     """

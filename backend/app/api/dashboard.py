@@ -64,7 +64,7 @@ async def get_dashboard_summary(db: AsyncSession = Depends(get_db)):
 
 @router.get("/delivery-trend", response_model=None, dependencies=[Depends(require_viewer)])
 async def get_delivery_trend(
-    range_param: str = Query("30d", alias="range", regex="^(7d|30d)$"),
+    range_param: str = Query("30d", alias="range", pattern="^(7d|30d)$"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -116,7 +116,7 @@ async def get_delivery_trend(
 
 @router.get("/charts", response_model=None, dependencies=[Depends(require_viewer)])
 async def get_charts_redirect(
-    range_param: str = Query("30d", alias="range", regex="^(7d|30d)$"),
+    range_param: str = Query("30d", alias="range", pattern="^(7d|30d)$"),
     db: AsyncSession = Depends(get_db)
 ):
     """
