@@ -62,7 +62,7 @@ export function SendSMSPage() {
     templatesService.getTemplates().then(setTemplates);
     settingsService.getSettings().then((res) => {
       setSettings(res);
-      setSenderId(res.defaultSenderId || "CAFECHAI");
+      setSenderId(res.defaultSenderId || "SMSBLAST");
       setRouteId(res.defaultRoute || "route_02");
     });
   }, []);

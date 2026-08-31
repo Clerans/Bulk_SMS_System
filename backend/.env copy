@@ -1,0 +1,96 @@
+# ============================================================
+# FASTAPI APPLICATION
+# ============================================================
+
+PROJECT_NAME="Enterprise SMS Campaign Management API"
+API_V1_STR="/api/v1"
+
+HOST=0.0.0.0
+PORT=8000
+
+
+# ============================================================
+# SUPABASE POSTGRESQL
+# ============================================================
+
+POSTGRES_SERVER=aws-0-ap-southeast-1.pooler.supabase.com
+POSTGRES_PORT=5432
+POSTGRES_USER=postgres.dzzoncfwvoihfcnjqnob
+POSTGRES_PASSWORD=Clerans2802
+POSTGRES_DB=postgres
+
+DATABASE_URL=postgresql+asyncpg://postgres.dzzoncfwvoihfcnjqnob:Clerans2802@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?ssl=require
+
+
+# ============================================================
+# REDIS / CELERY
+# ============================================================
+#
+# IMPORTANT:
+# Do NOT use localhost on Vercel.
+#
+# If your application requires these variables during startup,
+# replace CHANGE_ME_REDIS_URL with your real hosted Redis URL.
+#
+# Example:
+# redis://default:PASSWORD@HOST:6379
+#
+# If Celery is disabled for the initial Vercel API deployment,
+# these can be omitted from Vercel until the queue is configured.
+
+REDIS_URL=redis://localhost:6379/0
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+
+# ============================================================
+# JWT AUTHENTICATION
+# ============================================================
+
+JWT_SECRET_KEY=9a3cf8d4b3c0be8d56b6279f0f971b4028bb46fe5d1b7a2d8e0e7a2c5a6b7e8d
+JWT_REFRESH_SECRET_KEY=8f3c7a2d5e6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=7
+
+
+# ============================================================
+# CORS
+# ============================================================
+
+BACKEND_CORS_ORIGINS=["http://localhost:5173","http://localhost:3000","https://bulk-sms-system-nu.vercel.app"]
+
+
+# ============================================================
+# RATE LIMITING
+# ============================================================
+
+RATE_LIMIT_PER_MINUTE=60
+
+
+# ============================================================
+# SMS GATEWAY
+# ============================================================
+
+SMS_GATEWAY=NOTIFY
+
+
+# ============================================================
+# SMSLENZ
+# ============================================================
+# Keep these if your backend supports SMSLENZ as an alternative
+# gateway.
+
+SMS_GATEWAY=NOTIFY
+SMSLENZ_USER_ID=2218
+SMSLENZ_API_KEY=8ba87961-d032-425b-a841-b93f49484ee2
+SMSLENZ_SENDER_ID=SMSlenzDEMO
+SMSLENZ_BASE_URL=https://smslenz.lk/api
+
+
+# ============================================================
+# NOTIFY.LK
+# ============================================================
+
+NOTIFY_USER_ID=32372
+NOTIFY_API_KEY=8K1xL5xQK3LCHwZvL9i1
+NOTIFY_SENDER_ID=NotifyDEMO
+NOTIFY_BASE_URL=https://app.notify.lk/api/v1

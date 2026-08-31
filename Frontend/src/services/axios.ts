@@ -1,6 +1,33 @@
 import axios from "axios";
 
-const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL ?? "/api";
+/**
+ * Resolves the backend API base URL.
+ * Supports:
+ * - import.meta.env.VITE_API_URL (Primary, e.g. "https://sms-back-eight.vercel.app")
+ * - import.meta.env.VITE_API_BASE_URL (Fallback)
+ * 
+ * Normalizes trailing slashes and ensures /api/v1 prefix without duplication.
+ * Defaults to "/api/v1" in local development (proxied by Vite).
+ */
+export function getApiBaseUrl(): string {
+  const envUrl = (import.meta as any).env?.VITE_API_URL || (import.meta as any).env?.VITE_API_BASE_URL || "";
+  
+  if (!envUrl) {
+    return "/api/v1";
+  }
+
+  const trimmed = String(envUrl).trim().replace(/\/+$/, "");
+  
+  if (trimmed.endsWith("/api/v1")) {
+    return trimmed;
+  }
+  if (trimmed.endsWith("/api")) {
+    return `${trimmed}/v1`;
+  }
+  return `${trimmed}/api/v1`;
+}
+
+export const BASE_URL = getApiBaseUrl();
 
 export const axiosInstance = axios.create({
   baseURL: BASE_URL,

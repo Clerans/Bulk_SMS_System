@@ -10,7 +10,7 @@ class WebSocketService {
   private isManualDisconnect = false;
 
   private getWebSocketUrl(token: string): string {
-    const apiBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL ?? "";
+    const apiBaseUrl = (import.meta as any).env?.VITE_API_URL || (import.meta as any).env?.VITE_API_BASE_URL || "";
     
     let wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     let wsHost = window.location.host;
