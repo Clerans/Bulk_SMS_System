@@ -1,5 +1,6 @@
 import sys
 import os
+import importlib
 
 # Ensure root and backend directory paths are in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -11,6 +12,7 @@ for path in [parent_dir, backend_dir, current_dir]:
         sys.path.insert(0, path)
 
 try:
-    from app.main import app
+    from backend.app.main import app
 except Exception:
-    from backend.app.main import app  # type: ignore
+    app = importlib.import_module("app.main").app
+
