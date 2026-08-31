@@ -1,5 +1,5 @@
 import os
-from typing import List, Union
+from typing import Any, List, Union
 from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -38,12 +38,21 @@ class Settings(BaseSettings):
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
-        if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
-        elif isinstance(v, (list, str)):
-            return v
-        raise ValueError(v)
+    def assemble_cors_origins(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            v_str = v.strip()
+            if v_str.startswith("[") and v_str.endswith("]"):
+                try:
+                    import json
+                    parsed = json.loads(v_str)
+                    if isinstance(parsed, list):
+                        return [str(item).strip().rstrip("/") for item in parsed if item]
+                except Exception:
+                    pass
+            return [i.strip().rstrip("/") for i in v_str.split(",") if i.strip()]
+        elif isinstance(v, (list, tuple, set)):
+            return [str(item).strip().rstrip("/") for item in v if item]
+        return ["http://localhost:5173", "http://localhost:3000", "https://bulk-sms-system-nu.vercel.app"]
 
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60

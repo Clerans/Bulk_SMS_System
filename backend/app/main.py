@@ -58,18 +58,37 @@ for prefix in [settings.API_V1_STR, "/api"]:
     app.include_router(ws_router, prefix=prefix)
 
 # CORS Middleware Setup
-if settings.BACKEND_CORS_ORIGINS:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.BACKEND_CORS_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+raw_origins = settings.BACKEND_CORS_ORIGINS if isinstance(settings.BACKEND_CORS_ORIGINS, list) else []
+cors_origins: list[str] = [str(o).strip().rstrip("/") for o in raw_origins if o]
+
+# Ensure required production and local development origins are always present
+default_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "https://bulk-sms-system-nu.vercel.app",
+]
+for origin in default_origins:
+    if origin not in cors_origins:
+        cors_origins.append(origin)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
+)
 
 # Custom Middleware for Security Headers (Helmet-equivalent) and Request Logging
 @app.middleware("http")
 async def add_security_headers_and_log(request: Request, call_next):
+    # Allow OPTIONS preflight requests to be processed directly by CORSMiddleware
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     start_time = time.time()
     
     # Helmet-equivalent security headers
@@ -79,7 +98,6 @@ async def add_security_headers_and_log(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none';"
     
     duration = time.time() - start_time
     logger.info(
