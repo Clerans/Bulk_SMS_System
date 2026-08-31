@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     SMS_GATEWAY: str = "SMSLENZ"
     SMSLENZ_USER_ID: Union[str, None] = None
     SMSLENZ_API_KEY: Union[str, None] = None
-    SMSLENZ_SENDER_ID: Union[str, None] = "CAFECHAI"
+    SMSLENZ_SENDER_ID: Union[str, None] = "SMSBLAST"
     SMSLENZ_BASE_URL: str = "https://smslenz.lk/api"
 
     # Notify.lk Gateway Configurations

@@ -116,7 +116,7 @@ export function AddUserModal({ isOpen, onClose, onUserAdded, currentUserRole }: 
           <Input
             label="Email Address"
             type="email"
-            placeholder="akash@cafechai.lk"
+            placeholder="user@bulksms.lk"
             value={form.email}
             onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
           />

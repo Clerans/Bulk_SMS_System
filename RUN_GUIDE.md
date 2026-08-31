@@ -70,7 +70,7 @@ npm run dev
 ## 🔑 Default Credentials & Configurations
 
 ### Default Login
-- **Email**: `anika@cafechai.lk`
+- **Email**: `admin@bulksms.lk`
 - **Password**: `admin123`
 
 ### SMS Gateway Configuration (`backend/.env`)

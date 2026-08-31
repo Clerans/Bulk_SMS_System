@@ -11,7 +11,7 @@ class SettingBase(BaseModel):
     sms_balance_warning_threshold: int = Field(..., ge=0, serialization_alias="smsBalanceWarningThreshold")
 
     # Gateway Configuration parameters
-    sender_id: str = Field("CAFECHAI", serialization_alias="senderId")
+    sender_id: str = Field("SMSBLAST", serialization_alias="senderId")
     gateway: str = Field("MOCK", serialization_alias="gateway")
     api_key: Optional[str] = Field(None, serialization_alias="apiKey")
     api_secret: Optional[str] = Field(None, serialization_alias="apiSecret")

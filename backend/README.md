@@ -89,7 +89,7 @@ pip install -r requirements.txt
 Create a `.env` file (copied from `.env.example`) and adjust values (e.g. `DATABASE_URL`, `REDIS_URL`) to map your local database credentials.
 
 ### 5. Create Tables & Seed Mock Data
-To initialize schemas and seed defaults (default admin accounts: `anika@cafechai.lk` / `admin123`):
+To initialize schemas and seed defaults (default Super Admin: `admin@bulksms.lk` / `admin123`):
 ```bash
 python -m app.database.seed
 ```

@@ -11,7 +11,7 @@ async def seed_users(db: AsyncSession) -> None:
     logger.info("Seeding default users...")
     
     # 1. Default Super Admin User
-    admin_email = "anika@cafechai.lk"
+    admin_email = "admin@bulksms.lk"
     admin = await user_repository.get_by_email(db, email=admin_email)
     if not admin:
         admin_data = {
@@ -31,7 +31,7 @@ async def seed_users(db: AsyncSession) -> None:
         logger.info(f"Super Admin user verified: {admin_email}")
 
     # 2. Default Branch Admin User
-    branch_admin_email = "admin@cafechai.lk"
+    branch_admin_email = "branch@bulksms.lk"
     b_admin = await user_repository.get_by_email(db, email=branch_admin_email)
     if not b_admin:
         b_admin_data = {
@@ -46,11 +46,11 @@ async def seed_users(db: AsyncSession) -> None:
         logger.info(f"Created default Admin user: {branch_admin_email}")
 
     # 3. Default Operator User
-    operator_email = "operator@cafechai.lk"
+    operator_email = "operator@bulksms.lk"
     operator = await user_repository.get_by_email(db, email=operator_email)
     if not operator:
         operator_data = {
-            "name": "Dilshan Silva",
+            "name": "Operator",
             "email": operator_email,
             "phone": "0779876543",
             "password": hash_password("operator123"),

@@ -10,8 +10,8 @@ import type {
 
 export const MOCK_USER: User = {
   id: "usr_01",
-  name: "Anika Perera",
-  email: "anika@cafechai.lk",
+  name: "Super Admin",
+  email: "admin@bulksms.lk",
   role: "ADMIN",
 };
 
@@ -44,42 +44,42 @@ export const MOCK_TREND: DeliveryTrend[] = generateMockTrend();
 
 export const MOCK_CAMPAIGNS: Campaign[] = [
   {
-    id: "cmp_01", name: "Weekend Flash Sale", senderId: "CAFECHAI",
-    message: "Hi {name}, enjoy 30% off this weekend! Use code {code}. Valid until Sunday. Shop: cafechai.lk",
+    id: "cmp_01", name: "Weekend Flash Sale", senderId: "SMSBLAST",
+    message: "Hi {name}, enjoy 30% off this weekend! Use code {code}. Valid until Sunday. Shop: bulksms.lk",
     status: "COMPLETED", recipientCount: 5000, deliveredCount: 4870, failedCount: 130, pendingCount: 0,
     smsUnits: 5000, route: "Premium Route", scheduledAt: null,
     sentAt: "2026-07-10T08:00:00+05:30", createdAt: "2026-07-09T22:00:00+05:30",
   },
   {
-    id: "cmp_02", name: "New Product Launch", senderId: "CAFECHAI",
-    message: "Exciting news! Our new Signature Blend is here. Order now at cafechai.lk",
+    id: "cmp_02", name: "New Product Launch", senderId: "SMSBLAST",
+    message: "Exciting news! Our new feature is live. Check it out at bulksms.lk",
     status: "PROCESSING", recipientCount: 3200, deliveredCount: 2100, failedCount: 45, pendingCount: 1055,
     smsUnits: 3200, route: "Premium Route", scheduledAt: null,
     sentAt: "2026-07-12T09:00:00+05:30", createdAt: "2026-07-12T08:50:00+05:30",
   },
   {
-    id: "cmp_03", name: "Loyalty Rewards Reminder", senderId: "CAFECHAI",
+    id: "cmp_03", name: "Loyalty Rewards Reminder", senderId: "SMSBLAST",
     message: "Hi {name}, you have {points} reward points expiring soon. Redeem before it's too late!",
     status: "SCHEDULED", recipientCount: 1240, deliveredCount: 0, failedCount: 0, pendingCount: 1240,
     smsUnits: 1240, route: "Default Route", scheduledAt: "2026-07-14T10:00:00+05:30",
     sentAt: null, createdAt: "2026-07-12T07:00:00+05:30",
   },
   {
-    id: "cmp_04", name: "Ramadan Special Offer", senderId: "CAFECHAI",
-    message: "Assalamu Alaikum {name}! Special Ramadan bundle at 25% off. Limited stock. Order: cafechai.lk",
+    id: "cmp_04", name: "Ramadan Special Offer", senderId: "SMSBLAST",
+    message: "Assalamu Alaikum {name}! Special Ramadan bundle at 25% off. Limited stock. Order: bulksms.lk",
     status: "PARTIALLY_FAILED", recipientCount: 2800, deliveredCount: 2650, failedCount: 150, pendingCount: 0,
     smsUnits: 2800, route: "Default Route", scheduledAt: null,
     sentAt: "2026-06-28T07:00:00+05:30", createdAt: "2026-06-27T18:00:00+05:30",
   },
   {
-    id: "cmp_05", name: "App Re-engagement", senderId: "CAFECHAI",
-    message: "We miss you! Open the CafeChai app and get your next order free. Terms apply.",
+    id: "cmp_05", name: "App Re-engagement", senderId: "SMSBLAST",
+    message: "We miss you! Open the SMSBlast app and get your next bonus. Terms apply.",
     status: "COMPLETED", recipientCount: 8500, deliveredCount: 8320, failedCount: 180, pendingCount: 0,
     smsUnits: 8500, route: "Economy Route", scheduledAt: null,
     sentAt: "2026-06-20T09:00:00+05:30", createdAt: "2026-06-19T14:00:00+05:30",
-  },
+    },
   {
-    id: "cmp_06", name: "OTP Test Run", senderId: "CAFECHAI",
+    id: "cmp_06", name: "OTP Test Run", senderId: "SMSBLAST",
     message: "Your OTP is {otp}. Valid for 5 minutes. Do not share.",
     status: "FAILED", recipientCount: 100, deliveredCount: 0, failedCount: 100, pendingCount: 0,
     smsUnits: 100, route: "Premium Route", scheduledAt: null,
@@ -154,7 +154,7 @@ export const MOCK_ROUTES: SMSRoute[] = [
 ];
 
 export const MOCK_SETTINGS: AppSettings = {
-  companyName: "CafeChai Sri Lanka",
+  companyName: "Bulk SMS System",
   defaultCountry: "Sri Lanka",
   defaultCountryCode: "+94",
   timezone: "Asia/Colombo",
