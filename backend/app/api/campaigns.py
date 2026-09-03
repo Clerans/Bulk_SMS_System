@@ -255,7 +255,14 @@ async def create_campaign(
 
     # 4. Trigger Celery Task immediately if "NOW"
     if data.schedule_type == "NOW":
-        process_sms_campaign.delay(str(db_campaign.id))
+        try:
+            process_sms_campaign.delay(str(db_campaign.id))
+        except Exception as e:
+            from loguru import logger
+            import asyncio
+            from app.workers.tasks import run_process_campaign
+            logger.warning(f"Could not queue via Celery ({e}), falling back to direct background execution")
+            asyncio.create_task(run_process_campaign(str(db_campaign.id)))
 
     return {
         "success": True,
@@ -350,7 +357,14 @@ async def send_campaign(
     )
 
     # Trigger worker task
-    process_sms_campaign.delay(str(db_campaign.id))
+    try:
+        process_sms_campaign.delay(str(db_campaign.id))
+    except Exception as e:
+        from loguru import logger
+        import asyncio
+        from app.workers.tasks import run_process_campaign
+        logger.warning(f"Could not queue via Celery ({e}), falling back to direct background execution")
+        asyncio.create_task(run_process_campaign(str(db_campaign.id)))
 
     return {
         "success": True,
@@ -375,7 +389,14 @@ async def retry_campaign(
         raise NotFoundException(message="Campaign not found or has no failed recipients")
 
     # Trigger background tasks to execute retries
-    process_sms_campaign.delay(str(updated_campaign.id))
+    try:
+        process_sms_campaign.delay(str(updated_campaign.id))
+    except Exception as e:
+        from loguru import logger
+        import asyncio
+        from app.workers.tasks import run_process_campaign
+        logger.warning(f"Could not queue retry via Celery ({e}), falling back to direct background execution")
+        asyncio.create_task(run_process_campaign(str(updated_campaign.id)))
 
     # Audit Logging
     await audit_service.log_action(
