@@ -10,11 +10,11 @@ class WebSocketService {
   private isManualDisconnect = false;
 
   private getWebSocketUrl(token: string): string {
-    const apiBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL ?? "";
+    const apiBaseUrl = (import.meta as any).env?.VITE_API_URL || (import.meta as any).env?.VITE_API_BASE_URL || "";
     
     let wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     let wsHost = window.location.host;
-    let wsPath = "/api/v1/ws";
+    let wsPath = "/api/ws";
     
     if (apiBaseUrl) {
       try {
@@ -27,15 +27,14 @@ class WebSocketService {
         wsHost = url.host;
         
         // Extract base path, e.g. /api/v1 or /api or /
-        let basePath = url.pathname;
-        if (basePath.endsWith("/")) {
-          basePath = basePath.slice(0, -1);
-        }
+        let basePath = url.pathname.replace(/\/+$/, "");
         
         if (basePath.endsWith("/api/v1") || basePath.endsWith("/api")) {
           wsPath = `${basePath}/ws`;
+        } else if (basePath) {
+          wsPath = `${basePath}/api/ws`;
         } else {
-          wsPath = `${basePath}/api/v1/ws`;
+          wsPath = "/api/ws";
         }
       } catch (e) {
         console.error("Failed to parse API base URL for WebSocket", e);

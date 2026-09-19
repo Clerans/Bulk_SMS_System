@@ -60,7 +60,17 @@ export function SettingsPage({ theme, onThemeToggle }: SettingsPageProps) {
     const selectedGw = e.target.value;
     if (!settings) return;
 
-    if (selectedGw === "NOTIFY") {
+    if (selectedGw === "ESMS" || selectedGw === "DIALOG") {
+      setSettings({
+        ...settings,
+        gateway: "ESMS",
+        apiKey: settings.esmsUsername || "dialog_user",
+        apiSecret: settings.esmsPassword || "••••••••",
+        defaultSenderId: "UMG Lanka",
+        senderId: "UMG Lanka",
+        esmsPaymentMethod: 0,
+      });
+    } else if (selectedGw === "NOTIFY") {
       setSettings({
         ...settings,
         gateway: "NOTIFY",
@@ -140,28 +150,49 @@ export function SettingsPage({ theme, onThemeToggle }: SettingsPageProps) {
               <h2 className="text-base font-semibold text-foreground">SMS Configuration</h2>
               <Select
                 label="Active SMS Gateway Provider"
-                value={settings.gateway || "NOTIFY"}
+                value={settings.gateway || "ESMS"}
                 onChange={handleGatewayChange}
               >
+                <option value="ESMS">Dialog eSMS v3.2 (Adeona Technologies / Dialog LK)</option>
                 <option value="NOTIFY">Notify.lk (Sri Lanka)</option>
                 <option value="SMSLENZ">SMSlenz.lk (Sri Lanka)</option>
               </Select>
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <Input
-                  label="API User ID / Account SID"
+                  label={settings.gateway === "ESMS" ? "Dialog eSMS Username" : "API User ID / Account SID"}
                   value={settings.apiKey || ""}
                   onChange={upd("apiKey")}
-                  placeholder="Enter User ID or Key"
+                  placeholder="Enter Username or User ID"
                 />
                 <Input
-                  label="API Secret / Token"
+                  label={settings.gateway === "ESMS" ? "Dialog eSMS Password" : "API Secret / Token"}
                   type="password"
                   value={settings.apiSecret || ""}
                   onChange={upd("apiSecret")}
-                  placeholder="Enter API Secret Key"
+                  placeholder="Enter Password or API Secret"
                 />
               </div>
+
+              {settings.gateway === "ESMS" && (
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <Select
+                    label="eSMS Payment Method"
+                    value={String(settings.esmsPaymentMethod ?? 0)}
+                    onChange={(e) => setSettings({ ...settings, esmsPaymentMethod: Number(e.target.value) })}
+                  >
+                    <option value="0">0 - eSMS Wallet Balance</option>
+                    <option value="4">4 - eSMS API Package</option>
+                  </Select>
+                  <Input
+                    label="Delivery Report Callback URL"
+                    value={settings.esmsDeliveryReportUrl || ""}
+                    onChange={upd("esmsDeliveryReportUrl")}
+                    placeholder="https://your-domain.com/api/v1/sms/delivery-report"
+                    hint="Publicly accessible webhook URL for eSMS delivery callbacks"
+                  />
+                </div>
+              )}
 
               <Select
                 label="Default Sender ID"

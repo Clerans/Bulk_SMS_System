@@ -83,8 +83,12 @@ async def format_campaign_dict(db: AsyncSession, campaign: Campaign) -> dict:
         "route": c.route,
         "template": template_val,
         "createdBy": created_by_val,
-        "gateway": getattr(c, "gateway", None) or "Notify.lk",
+        "gateway": getattr(c, "gateway", None) or "Dialog eSMS",
         "queueId": getattr(c, "queue_id", None),
+        "transactionId": getattr(c, "transaction_id", None),
+        "gatewayCampaignId": getattr(c, "gateway_campaign_id", None),
+        "cost": getattr(c, "cost", 0.0) or 0.0,
+        "walletBalance": getattr(c, "wallet_balance", None),
         "messageIds": msg_ids,
         "retryCount": getattr(c, "retry_count", 0) or 0,
         "progress": progress_obj,
@@ -142,6 +146,43 @@ async def get_campaign(
         "success": True,
         "message": "Campaign retrieved successfully",
         "data": c_data,
+        "errors": None
+    }
+
+@router.get("/{campaign_id}/progress", response_model=None, dependencies=[Depends(require_viewer)])
+async def get_campaign_progress(
+    campaign_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Retrieve real-time delivery and progress metrics for a specific campaign.
+    """
+    campaign = await campaign_repository.get(db, id=campaign_id)
+    if not campaign:
+        raise NotFoundException(message="Campaign not found")
+
+    total = campaign.recipient_count or 0
+    delivered = campaign.delivered_count or 0
+    failed = campaign.failed_count or 0
+    pending = campaign.pending_count or 0
+    submitted = max(0, total - pending)
+    pct = round((submitted / total * 100), 1) if total > 0 else 0.0
+
+    return {
+        "success": True,
+        "message": "Campaign progress retrieved",
+        "data": {
+            "campaign_id": str(campaign.id),
+            "status": campaign.status.value,
+            "total": total,
+            "submitted": submitted,
+            "delivered": delivered,
+            "failed": failed,
+            "pending": pending,
+            "progress_percentage": pct,
+            "transaction_id": campaign.transaction_id,
+            "gateway_campaign_id": campaign.gateway_campaign_id
+        },
         "errors": None
     }
 
@@ -255,7 +296,14 @@ async def create_campaign(
 
     # 4. Trigger Celery Task immediately if "NOW"
     if data.schedule_type == "NOW":
-        process_sms_campaign.delay(str(db_campaign.id))
+        try:
+            process_sms_campaign.delay(str(db_campaign.id))
+        except Exception as e:
+            from loguru import logger
+            import asyncio
+            from app.workers.tasks import run_process_campaign
+            logger.warning(f"Could not queue via Celery ({e}), falling back to direct background execution")
+            asyncio.create_task(run_process_campaign(str(db_campaign.id)))
 
     return {
         "success": True,
@@ -350,7 +398,14 @@ async def send_campaign(
     )
 
     # Trigger worker task
-    process_sms_campaign.delay(str(db_campaign.id))
+    try:
+        process_sms_campaign.delay(str(db_campaign.id))
+    except Exception as e:
+        from loguru import logger
+        import asyncio
+        from app.workers.tasks import run_process_campaign
+        logger.warning(f"Could not queue via Celery ({e}), falling back to direct background execution")
+        asyncio.create_task(run_process_campaign(str(db_campaign.id)))
 
     return {
         "success": True,
@@ -375,7 +430,14 @@ async def retry_campaign(
         raise NotFoundException(message="Campaign not found or has no failed recipients")
 
     # Trigger background tasks to execute retries
-    process_sms_campaign.delay(str(updated_campaign.id))
+    try:
+        process_sms_campaign.delay(str(updated_campaign.id))
+    except Exception as e:
+        from loguru import logger
+        import asyncio
+        from app.workers.tasks import run_process_campaign
+        logger.warning(f"Could not queue retry via Celery ({e}), falling back to direct background execution")
+        asyncio.create_task(run_process_campaign(str(updated_campaign.id)))
 
     # Audit Logging
     await audit_service.log_action(

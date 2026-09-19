@@ -6,3 +6,5 @@ from app.models.setting import Setting
 from app.models.campaign import Campaign, CampaignRecipient, CampaignStatus, DeliveryStatus
 from app.models.sms_log import SMSLog
 from app.models.audit_log import AuditLog
+from app.models.gateway_transaction import GatewayTransaction
+from app.models.delivery_event import DeliveryEvent

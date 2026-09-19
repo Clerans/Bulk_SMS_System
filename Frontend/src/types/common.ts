@@ -85,6 +85,10 @@ export interface Campaign {
   createdBy?: string | null;
   gateway?: string | null;
   queueId?: string | null;
+  transactionId?: number | null;
+  gatewayCampaignId?: string | null;
+  cost?: number;
+  walletBalance?: number | null;
   messageIds?: string[];
   retryCount?: number;
   progress?: {
@@ -184,6 +188,11 @@ export interface AppSettings {
   gateway?: string;
   apiKey?: string;
   apiSecret?: string;
+  esmsUsername?: string;
+  esmsPassword?: string;
+  esmsDefaultMask?: string;
+  esmsPaymentMethod?: number;
+  esmsDeliveryReportUrl?: string;
 }
 
 // ─── SMS Utility Types ────────────────────────────────────────────────────────

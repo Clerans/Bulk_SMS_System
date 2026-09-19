@@ -11,8 +11,10 @@ from app.models.campaign import Campaign, CampaignStatus, CampaignRecipient, Del
 from app.models.contact import Contact, ContactStatus
 from app.models.sms_log import SMSLog
 from app.models.setting import Setting
+from app.models.gateway_transaction import GatewayTransaction
 from app.repositories.setting import setting_repository
-from app.services.sms_provider import MockSMSProvider, TwilioSMSProvider
+from app.services.sms_provider import MockSMSProvider, TwilioSMSProvider, get_sms_provider
+from app.services.providers.esms_provider import DialogESMSProvider
 from app.services.providers.smslenz_provider import SMSLenzProvider
 from app.services.providers.notify_provider import NotifySMSProvider
 from app.workers.celery_app import celery_app
@@ -80,15 +82,30 @@ async def run_process_campaign(campaign_id: str) -> None:
             await db.commit()
             return
 
-        # 3. Gateway Selection Strategy: SMS_GATEWAY env var / SMSLENZ credentials -> DB Setting -> Fallback
-        gw_name = (getattr(settings, "SMS_GATEWAY", None) or app_settings.gateway or "SMSLENZ").upper()
+        # 3. Gateway Selection Strategy: ESMS -> NOTIFY -> SMSLENZ -> TWILIO -> Fallback
+        gw_name = (getattr(settings, "SMS_GATEWAY", None) or app_settings.gateway or "ESMS").upper()
 
-        if gw_name == "NOTIFY" or (getattr(settings, "NOTIFY_USER_ID", None) and getattr(settings, "NOTIFY_API_KEY", None)):
+        if gw_name in ("ESMS", "DIALOG", "DIALOG_ESMS") or (getattr(settings, "ESMS_USERNAME", None) and getattr(settings, "ESMS_PASSWORD", None)):
+            provider = DialogESMSProvider(
+                username=getattr(settings, "ESMS_USERNAME", None) or app_settings.api_key,
+                password=getattr(settings, "ESMS_PASSWORD", None) or app_settings.api_secret,
+                sender_id=getattr(settings, "ESMS_DEFAULT_MASK", None) or app_settings.sender_id or campaign.sender_id or "CAFECHAI",
+                base_url=getattr(settings, "ESMS_BASE_URL", None),
+                auth_url=getattr(settings, "ESMS_AUTH_URL", None),
+                payment_method=getattr(settings, "ESMS_PAYMENT_METHOD", 0),
+                delivery_report_url=getattr(settings, "ESMS_DELIVERY_REPORT_URL", None),
+                batch_size=getattr(settings, "ESMS_BATCH_SIZE", 1000)
+            )
+            gateway_name = "Dialog eSMS"
+            logger.info(f"[CAMPAIGN WORKER] Selected Provider: DialogESMSProvider | Gateway: ESMS | Campaign ID: {campaign.id}")
+            print(f"[CAMPAIGN WORKER] Selected Provider: DialogESMSProvider | Gateway: ESMS | Campaign ID: {campaign.id}")
+        elif gw_name == "NOTIFY" or (getattr(settings, "NOTIFY_USER_ID", None) and getattr(settings, "NOTIFY_API_KEY", None)):
             provider = NotifySMSProvider(
                 user_id=getattr(settings, "NOTIFY_USER_ID", None) or app_settings.api_key,
                 api_key=getattr(settings, "NOTIFY_API_KEY", None) or app_settings.api_secret,
                 sender_id=getattr(settings, "NOTIFY_SENDER_ID", None) or app_settings.sender_id or "NotifyDEMO"
             )
+            gateway_name = "Notify.lk"
             logger.info(f"[CAMPAIGN WORKER] Selected Provider: NotifySMSProvider | Gateway: NOTIFY | Campaign ID: {campaign.id}")
             print(f"[CAMPAIGN WORKER] Selected Provider: NotifySMSProvider | Gateway: NOTIFY | Campaign ID: {campaign.id}")
         elif gw_name == "SMSLENZ" or (settings.SMSLENZ_USER_ID and settings.SMSLENZ_API_KEY):
@@ -97,22 +114,24 @@ async def run_process_campaign(campaign_id: str) -> None:
                 api_key=settings.SMSLENZ_API_KEY or app_settings.api_secret,
                 sender_id=settings.SMSLENZ_SENDER_ID or app_settings.sender_id or "CAFECHAI"
             )
+            gateway_name = "SMSlenz"
             logger.info(f"[CAMPAIGN WORKER] Selected Provider: SMSLenzProvider | Gateway: SMSLENZ | Campaign ID: {campaign.id}")
             print(f"[CAMPAIGN WORKER] Selected Provider: SMSLenzProvider | Gateway: SMSLENZ | Campaign ID: {campaign.id}")
         elif gw_name == "TWILIO" and app_settings.api_key and app_settings.api_secret:
             provider = TwilioSMSProvider(app_settings.api_key, app_settings.api_secret)
+            gateway_name = "Twilio"
             logger.info(f"[CAMPAIGN WORKER] Selected Provider: TwilioSMSProvider | Gateway: TWILIO | Campaign ID: {campaign.id}")
         else:
             provider = MockSMSProvider()
+            gateway_name = "MOCK"
             logger.warning(f"[CAMPAIGN WORKER] Selected Provider: MockSMSProvider | Gateway: MOCK | Campaign ID: {campaign.id}")
 
         # Update status & metadata
         campaign.status = CampaignStatus.PROCESSING
         campaign.sent_at = datetime.now(timezone.utc)
-        gateway_name = "Notify.lk" if isinstance(provider, NotifySMSProvider) else ("SMSlenz" if isinstance(provider, SMSLenzProvider) else "MOCK")
         campaign.gateway = gateway_name
         try:
-            campaign.queue_id = str(self.request.id) if self.request and self.request.id else str(uuid.uuid4())
+            campaign.queue_id = str(uuid.uuid4())
         except Exception:
             campaign.queue_id = str(uuid.uuid4())
         await db.commit()
@@ -318,7 +337,21 @@ async def run_process_bulk_sms(phones: list[str], message: str, sender_id: str) 
         gw_name = (getattr(settings, "SMS_GATEWAY", None) or app_settings.gateway or "SMSLENZ").upper()
 
         # Gateway selection
-        if gw_name == "NOTIFY" or (getattr(settings, "NOTIFY_USER_ID", None) and getattr(settings, "NOTIFY_API_KEY", None)):
+        gw_name = (getattr(settings, "SMS_GATEWAY", None) or app_settings.gateway or "ESMS").upper()
+
+        if gw_name in ("ESMS", "DIALOG", "DIALOG_ESMS") or (getattr(settings, "ESMS_USERNAME", None) and getattr(settings, "ESMS_PASSWORD", None)):
+            provider = DialogESMSProvider(
+                username=getattr(settings, "ESMS_USERNAME", None) or app_settings.api_key,
+                password=getattr(settings, "ESMS_PASSWORD", None) or app_settings.api_secret,
+                sender_id=sender_id or getattr(settings, "ESMS_DEFAULT_MASK", None) or app_settings.sender_id or "CAFECHAI",
+                base_url=getattr(settings, "ESMS_BASE_URL", None),
+                auth_url=getattr(settings, "ESMS_AUTH_URL", None),
+                payment_method=getattr(settings, "ESMS_PAYMENT_METHOD", 0),
+                delivery_report_url=getattr(settings, "ESMS_DELIVERY_REPORT_URL", None),
+                batch_size=getattr(settings, "ESMS_BATCH_SIZE", 1000)
+            )
+            logger.info("[BULK SMS WORKER] Selected Provider: DialogESMSProvider | Gateway: ESMS")
+        elif gw_name == "NOTIFY" or (getattr(settings, "NOTIFY_USER_ID", None) and getattr(settings, "NOTIFY_API_KEY", None)):
             provider = NotifySMSProvider(
                 user_id=getattr(settings, "NOTIFY_USER_ID", None) or app_settings.api_key,
                 api_key=getattr(settings, "NOTIFY_API_KEY", None) or app_settings.api_secret,
@@ -340,7 +373,7 @@ async def run_process_bulk_sms(phones: list[str], message: str, sender_id: str) 
             logger.warning("[BULK SMS WORKER] Selected Provider: MockSMSProvider | Gateway: MOCK")
 
         # If provider supports native batch send
-        if isinstance(provider, (SMSLenzProvider, NotifySMSProvider)):
+        if isinstance(provider, (DialogESMSProvider, SMSLenzProvider, NotifySMSProvider)):
             def batch_progress(b_idx: int, total_b: int, processed: int, total: int):
                 pct = int((processed / total) * 100) if total > 0 else 100
                 broadcast_notification(f"Bulk SMS Batch {b_idx}/{total_b} completed ({pct}%).", "info")
@@ -349,28 +382,33 @@ async def run_process_bulk_sms(phones: list[str], message: str, sender_id: str) 
                 recipients=phones,
                 message=message,
                 sender_id=sender_id,
-                batch_size=100,
+                batch_size=getattr(settings, "ESMS_BATCH_SIZE", 1000) if isinstance(provider, DialogESMSProvider) else 100,
                 progress_callback=batch_progress
             )
 
-            delivered_inc = sum(1 for r in results if r["status"] in (DeliveryStatus.ACCEPTED, DeliveryStatus.DELIVERED))
+            delivered_inc = sum(1 for r in results if r["status"] in (DeliveryStatus.ACCEPTED, DeliveryStatus.DELIVERED, DeliveryStatus.SUBMITTED))
             failed_inc = len(results) - delivered_inc
 
             for res in results:
                 log_entry = SMSLog(
                     phone=res["phone"],
                     message=message,
-                    provider=app_settings.gateway,
+                    provider="Dialog eSMS" if isinstance(provider, DialogESMSProvider) else app_settings.gateway,
                     status=res["status"],
-                    error_message=res["error_message"],
+                    error_message=res.get("error_message"),
+                    gateway_message_id=str(res.get("gateway_campaign_id") or res.get("message_id") or ""),
+                    gateway_response=str(res.get("raw_response")) if res.get("raw_response") else None,
+                    error_code=res.get("error_code"),
                     sent_at=res["sent_at"],
                     delivered_at=res["sent_at"] if res["status"] == DeliveryStatus.DELIVERED else None
                 )
                 db.add(log_entry)
-                broadcast_sms_status(res["phone"], res["status"].value, None, res["error_message"])
+                broadcast_sms_status(res["phone"], res["status"].value, None, res.get("error_message"))
 
             # Sync balance
-            if results and results[-1].get("sms_credit_balance") is not None:
+            if results and results[-1].get("wallet_balance") is not None:
+                app_settings.sms_balance = int(float(results[-1]["wallet_balance"]))
+            elif results and results[-1].get("sms_credit_balance") is not None:
                 app_settings.sms_balance = int(float(results[-1]["sms_credit_balance"]))
 
         else:
@@ -393,7 +431,7 @@ async def run_process_bulk_sms(phones: list[str], message: str, sender_id: str) 
                         sender_id=sender_id
                     )
                     
-                    if res["status"] in [DeliveryStatus.ACCEPTED, DeliveryStatus.SENT, DeliveryStatus.DELIVERED]:
+                    if res["status"] in [DeliveryStatus.ACCEPTED, DeliveryStatus.SENT, DeliveryStatus.DELIVERED, DeliveryStatus.SUBMITTED]:
                         app_settings.sms_balance -= 1
                         delivered_inc += 1
                     else:
@@ -446,3 +484,67 @@ def process_bulk_sms(phones: list[str], message: str, sender_id: str) -> None:
     Celery task wrapper executing the async run_process_bulk_sms script.
     """
     asyncio.run(run_process_bulk_sms(phones, message, sender_id))
+
+
+async def run_sync_esms_transactions() -> None:
+    """
+    Background worker reconciling pending Dialog eSMS transactions.
+    Checks campaign status for pending transactions adhering to 2 TPS (120 req/min) constraint.
+    """
+    logger.info("[SYNC ESMS] Starting eSMS transaction status reconciliation...")
+    async with SessionLocal() as db:
+        # Find active campaigns using Dialog eSMS that have a transaction_id and are not final
+        query = (
+            select(Campaign)
+            .where(
+                Campaign.transaction_id.isnot(None),
+                Campaign.status.in_([CampaignStatus.QUEUED, CampaignStatus.PROCESSING, CampaignStatus.ACCEPTED])
+            )
+            .limit(50)
+        )
+        res = await db.execute(query)
+        campaigns = list(res.scalars().all())
+
+        if not campaigns:
+            logger.info("[SYNC ESMS] No active eSMS campaigns requiring transaction check.")
+            return
+
+        provider = DialogESMSProvider()
+        for c in campaigns:
+            if not c.transaction_id:
+                continue
+
+            try:
+                # Rate limit compliance: pause 0.5s (2 requests per second max)
+                await asyncio.sleep(0.5)
+                tx_status_res = await provider.check_transaction_status(c.transaction_id)
+
+                if tx_status_res.get("success"):
+                    remote_status = (tx_status_res.get("campaign_status") or "").lower()
+                    logger.info(f"[SYNC ESMS] Campaign '{c.name}' (TX: {c.transaction_id}) status from gateway: {remote_status}")
+
+                    if remote_status == "completed":
+                        # If pending_count is 0 or all messages processed, mark completed
+                        if c.delivered_count + c.failed_count >= c.recipient_count:
+                            c.status = CampaignStatus.COMPLETED if c.failed_count == 0 else CampaignStatus.PARTIALLY_FAILED
+                            c.completed_at = datetime.now(timezone.utc)
+                            db.add(c)
+                            await db.commit()
+                            broadcast_campaign_progress(str(c.id), 100, status=c.status.value)
+                    elif remote_status == "running":
+                        c.status = CampaignStatus.PROCESSING
+                        db.add(c)
+                        await db.commit()
+
+            except Exception as e:
+                logger.warning(f"[SYNC ESMS] Failed checking transaction {c.transaction_id}: {e}")
+
+    logger.info("[SYNC ESMS] Finished transaction reconciliation cycle.")
+
+
+@celery_app.task(name="sync_esms_transactions")
+def sync_esms_transactions() -> None:
+    """
+    Celery task wrapper for periodic eSMS transaction status check.
+    """
+    asyncio.run(run_sync_esms_transactions())

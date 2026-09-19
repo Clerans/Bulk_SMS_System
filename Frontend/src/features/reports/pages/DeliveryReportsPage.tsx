@@ -133,6 +133,7 @@ export function DeliveryReportsPage() {
             className="px-3 py-2 rounded-lg border border-border bg-input-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           >
             <option value="ALL">All Sender IDs</option>
+            <option value="UMG Lanka">UMG Lanka</option>
             <option value="SMSlenzDEMO">SMSlenzDEMO</option>
             <option value="NotifyDEMO">NotifyDEMO</option>
           </select>
