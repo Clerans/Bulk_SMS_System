@@ -20,15 +20,49 @@ export function DashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      dashboardService.getSummary(),
-      dashboardService.getDeliveryTrend(),
-      campaignsService.getCampaigns(),
-    ]).then(([sum, tr, camps]) => {
-      setSummary(sum);
-      setTrend(tr);
-      setRecentCampaigns(camps.slice(0, 5));
-      setLoading(false);
-    });
+      dashboardService.getSummary().catch((e) => {
+        console.warn("Failed to get dashboard summary:", e);
+        return null;
+      }),
+      dashboardService.getDeliveryTrend().catch((e) => {
+        console.warn("Failed to get delivery trend:", e);
+        return [];
+      }),
+      campaignsService.getCampaigns().catch((e) => {
+        console.warn("Failed to get campaigns:", e);
+        return [];
+      }),
+    ])
+      .then(([sum, tr, camps]) => {
+        setSummary(
+          sum || {
+            totalSent: 0,
+            delivered: 0,
+            failed: 0,
+            activeCampaigns: 0,
+            smsBalance: 50000,
+            campaignCount: Array.isArray(camps) ? camps.length : 0,
+          }
+        );
+        setTrend(Array.isArray(tr) ? tr : []);
+        setRecentCampaigns(Array.isArray(camps) ? camps.slice(0, 5) : []);
+      })
+      .catch((err) => {
+        console.error("Dashboard critical load error:", err);
+        setSummary({
+          totalSent: 0,
+          delivered: 0,
+          failed: 0,
+          activeCampaigns: 0,
+          smsBalance: 50000,
+          campaignCount: 0,
+        });
+        setTrend([]);
+        setRecentCampaigns([]);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {

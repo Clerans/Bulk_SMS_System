@@ -143,8 +143,9 @@ export const MOCK_REPORTS: DeliveryReport[] = [
 ];
 
 export const MOCK_SENDER_IDS: SenderId[] = [
-  { id: "sid_01", value: "SMSlenzDEMO", status: "APPROVED" },
-  { id: "sid_02", value: "NotifyDEMO", status: "APPROVED" },
+  { id: "sid_01", value: "UMG Lanka", status: "APPROVED" },
+  { id: "sid_02", value: "SMSlenzDEMO", status: "APPROVED" },
+  { id: "sid_03", value: "NotifyDEMO", status: "APPROVED" },
 ];
 
 export const MOCK_ROUTES: SMSRoute[] = [
@@ -154,13 +155,13 @@ export const MOCK_ROUTES: SMSRoute[] = [
 ];
 
 export const MOCK_SETTINGS: AppSettings = {
-  companyName: "CafeChai Sri Lanka",
+  companyName: "UMG Lanka SMS Platform",
   defaultCountry: "Sri Lanka",
   defaultCountryCode: "+94",
   timezone: "Asia/Colombo",
-  defaultSenderId: "NotifyDEMO",
+  defaultSenderId: "UMG Lanka",
   defaultRoute: "Premium Route",
   smsBalanceWarningThreshold: 5000,
-  smsBalance: 15000,
-  gateway: "NOTIFY",
+  smsBalance: 50000,
+  gateway: "ESMS",
 };

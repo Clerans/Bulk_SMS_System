@@ -21,17 +21,17 @@ class Setting(Base, TimestampMixin):
     )
     
     # User DB Tables layout requirements
-    sender_id: Mapped[str] = mapped_column(String(50), nullable=False, default="CAFECHAI")
-    gateway: Mapped[str] = mapped_column(String(50), nullable=False, default="SMSLENZ")
+    sender_id: Mapped[str] = mapped_column(String(50), nullable=False, default="UMG Lanka")
+    gateway: Mapped[str] = mapped_column(String(50), nullable=False, default="ESMS")
     api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     api_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sms_balance: Mapped[int] = mapped_column(Integer, nullable=False, default=50000)
 
     # Frontend requirements
-    company_name: Mapped[str] = mapped_column(String(100), nullable=False, default="CafeChai Sri Lanka")
+    company_name: Mapped[str] = mapped_column(String(100), nullable=False, default="UMG Lanka SMS Platform")
     default_country: Mapped[str] = mapped_column(String(50), nullable=False, default="Sri Lanka")
     default_country_code: Mapped[str] = mapped_column(String(10), nullable=False, default="+94")
     timezone: Mapped[str] = mapped_column(String(50), nullable=False, default="Asia/Colombo")
-    default_sender_id: Mapped[str] = mapped_column(String(50), nullable=False, default="CAFECHAI")
+    default_sender_id: Mapped[str] = mapped_column(String(50), nullable=False, default="UMG Lanka")
     default_route: Mapped[str] = mapped_column(String(50), nullable=False, default="Premium Route")
     sms_balance_warning_threshold: Mapped[int] = mapped_column(Integer, nullable=False, default=5000)

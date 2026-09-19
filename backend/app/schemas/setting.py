@@ -6,13 +6,13 @@ class SettingBase(BaseModel):
     default_country: str = Field(..., min_length=2, max_length=50, serialization_alias="defaultCountry")
     default_country_code: str = Field(..., min_length=1, max_length=10, serialization_alias="defaultCountryCode")
     timezone: str = Field(..., min_length=2, max_length=50, serialization_alias="timezone")
-    default_sender_id: str = Field(..., min_length=2, max_length=50, serialization_alias="defaultSenderId")
-    default_route: str = Field(..., min_length=2, max_length=50, serialization_alias="defaultRoute")
-    sms_balance_warning_threshold: int = Field(..., ge=0, serialization_alias="smsBalanceWarningThreshold")
+    default_sender_id: str = Field("UMG Lanka", min_length=2, max_length=50, serialization_alias="defaultSenderId")
+    default_route: str = Field("Premium Route", min_length=2, max_length=50, serialization_alias="defaultRoute")
+    sms_balance_warning_threshold: int = Field(5000, ge=0, serialization_alias="smsBalanceWarningThreshold")
 
     # Gateway Configuration parameters
-    sender_id: str = Field("CAFECHAI", serialization_alias="senderId")
-    gateway: str = Field("MOCK", serialization_alias="gateway")
+    sender_id: str = Field("UMG Lanka", serialization_alias="senderId")
+    gateway: str = Field("ESMS", serialization_alias="gateway")
     api_key: Optional[str] = Field(None, serialization_alias="apiKey")
     api_secret: Optional[str] = Field(None, serialization_alias="apiSecret")
 

@@ -66,8 +66,8 @@ export function SettingsPage({ theme, onThemeToggle }: SettingsPageProps) {
         gateway: "ESMS",
         apiKey: settings.esmsUsername || "dialog_user",
         apiSecret: settings.esmsPassword || "••••••••",
-        defaultSenderId: "CAFECHAI",
-        senderId: "CAFECHAI",
+        defaultSenderId: "UMG Lanka",
+        senderId: "UMG Lanka",
         esmsPaymentMethod: 0,
       });
     } else if (selectedGw === "NOTIFY") {

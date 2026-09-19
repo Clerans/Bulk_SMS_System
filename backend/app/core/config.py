@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     ESMS_AUTH_URL: str = "https://esms.dialog.lk"
     ESMS_USERNAME: Union[str, None] = None
     ESMS_PASSWORD: Union[str, None] = None
-    ESMS_DEFAULT_MASK: str = "CAFECHAI"
+    ESMS_DEFAULT_MASK: str = "UMG Lanka"
     ESMS_PAYMENT_METHOD: int = 0
     ESMS_DELIVERY_REPORT_URL: Union[str, None] = None
     ESMS_BATCH_SIZE: int = 1000

@@ -73,10 +73,7 @@ async def get_delivery_trend(
     days = 7 if range_param == "7d" else 30
     start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
-    # Group by date string formatted YYYY-MM-DD
-    # For SQLite and PostgreSQL, to_char is standard in PG, but func.substr/strftime in SQLite.
-    # Since we are deploying to PostgreSQL, we'll write standard PG func: func.to_char
-    date_field = func.to_char(SMSLog.created_at, "YYYY-MM-DD").label("date")
+    date_field = func.date(SMSLog.created_at).label("date")
     
     trend_query = (
         select(
@@ -96,9 +93,9 @@ async def get_delivery_trend(
     items = []
     for row in rows:
         items.append({
-            "date": row.date,
-            "delivered": row.delivered,
-            "failed": row.failed
+            "date": str(row.date) if row.date else "",
+            "delivered": row.delivered or 0,
+            "failed": row.failed or 0
         })
 
     # If no data exists, pad with mock/empty items for the requested range to keep the UI graph looking nice
