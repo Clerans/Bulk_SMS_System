@@ -297,7 +297,8 @@ async def run_process_campaign(campaign_id: str) -> None:
         try:
             if hasattr(provider, "check_balance"):
                 latest_balance = await provider.check_balance()
-                app_settings.sms_balance = int(float(latest_balance))
+                if latest_balance is not None and float(latest_balance) > 0:
+                    app_settings.sms_balance = int(float(latest_balance))
         except Exception as bal_ex:
             logger.warning(f"Could not sync account balance after campaign: {bal_ex}")
 

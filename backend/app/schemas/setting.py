@@ -24,6 +24,7 @@ class SettingUpdate(BaseModel):
     default_sender_id: Optional[str] = Field(None, min_length=2, max_length=50, validation_alias="defaultSenderId", serialization_alias="defaultSenderId")
     default_route: Optional[str] = Field(None, min_length=2, max_length=50, validation_alias="defaultRoute", serialization_alias="defaultRoute")
     sms_balance_warning_threshold: Optional[int] = Field(None, ge=0, validation_alias="smsBalanceWarningThreshold", serialization_alias="smsBalanceWarningThreshold")
+    sms_balance: Optional[int] = Field(None, ge=0, validation_alias="smsBalance", serialization_alias="smsBalance")
     
     sender_id: Optional[str] = Field(None, validation_alias="senderId", serialization_alias="senderId")
     gateway: Optional[str] = Field(None, validation_alias="gateway", serialization_alias="gateway")
