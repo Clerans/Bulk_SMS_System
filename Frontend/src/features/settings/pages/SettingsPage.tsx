@@ -212,13 +212,22 @@ export function SettingsPage({ theme, onThemeToggle }: SettingsPageProps) {
                   <option key={r.id} value={r.name}>{r.name}</option>
                 ))}
               </Select>
-              <Input
-                label="SMS Balance Warning Threshold"
-                type="number"
-                value={settings.smsBalanceWarningThreshold}
-                onChange={upd("smsBalanceWarningThreshold")}
-                hint="Show a warning when balance falls below this amount."
-              />
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Input
+                  label="SMS Balance (Credits)"
+                  type="number"
+                  value={settings.smsBalance ?? 50000}
+                  onChange={(e) => setSettings({ ...settings, smsBalance: Number(e.target.value) })}
+                  hint="Current SMS credits available in system."
+                />
+                <Input
+                  label="SMS Balance Warning Threshold"
+                  type="number"
+                  value={settings.smsBalanceWarningThreshold}
+                  onChange={(e) => setSettings({ ...settings, smsBalanceWarningThreshold: Number(e.target.value) })}
+                  hint="Show a warning when balance falls below this amount."
+                />
+              </div>
               <div className="pt-2">
                 <Button onClick={saveSettings}>Save Changes</Button>
               </div>
