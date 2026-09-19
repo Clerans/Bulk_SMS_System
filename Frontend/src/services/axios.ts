@@ -1,6 +1,21 @@
 import axios from "axios";
 
-const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL ?? "/api";
+function getApiBaseUrl(): string {
+  const envUrl = (import.meta as any).env?.VITE_API_URL || (import.meta as any).env?.VITE_API_BASE_URL;
+  if (!envUrl) {
+    return "/api";
+  }
+  // Trim whitespace and any trailing slashes
+  const trimmed = envUrl.trim().replace(/\/+$/, "");
+  // If the URL already ends with /api or /api/v1, use it as is
+  if (trimmed.endsWith("/api") || trimmed.endsWith("/api/v1")) {
+    return trimmed;
+  }
+  // Otherwise append /api so that endpoint paths like /auth/login resolve to https://.../api/auth/login
+  return `${trimmed}/api`;
+}
+
+export const BASE_URL = getApiBaseUrl();
 
 export const axiosInstance = axios.create({
   baseURL: BASE_URL,

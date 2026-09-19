@@ -226,15 +226,19 @@ export function CampaignDetailsPage() {
               </div>
               <div className="space-y-2.5">
                 {[
-                  { label: "Route",       value: campaign.route },
-                  { label: "SMS Units",   value: formatNumber(campaign.smsUnits) },
-                  { label: "Created",     value: format(parseISO(campaign.createdAt), "MMM d, yyyy HH:mm") },
-                  { label: "Sent At",     value: campaign.sentAt ? format(parseISO(campaign.sentAt), "MMM d, yyyy HH:mm") : "—" },
-                  { label: "Scheduled",   value: campaign.scheduledAt ? format(parseISO(campaign.scheduledAt), "MMM d, yyyy HH:mm") : "—" },
+                  { label: "Gateway",       value: campaign.gateway || "Dialog eSMS" },
+                  { label: "Transaction ID",value: campaign.transactionId ? String(campaign.transactionId) : "—" },
+                  { label: "Gateway Camp ID",value: campaign.gatewayCampaignId || "—" },
+                  { label: "Cost (LKR)",    value: campaign.cost !== undefined ? `Rs. ${Number(campaign.cost).toFixed(2)}` : "—" },
+                  { label: "Route",         value: campaign.route },
+                  { label: "SMS Units",     value: formatNumber(campaign.smsUnits) },
+                  { label: "Created",       value: format(parseISO(campaign.createdAt), "MMM d, yyyy HH:mm") },
+                  { label: "Sent At",       value: campaign.sentAt ? format(parseISO(campaign.sentAt), "MMM d, yyyy HH:mm") : "—" },
+                  { label: "Scheduled",     value: campaign.scheduledAt ? format(parseISO(campaign.scheduledAt), "MMM d, yyyy HH:mm") : "—" },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{label}</span>
-                    <span className="font-medium text-foreground">{value}</span>
+                    <span className="font-medium text-foreground font-mono text-xs sm:text-sm">{value}</span>
                   </div>
                 ))}
               </div>

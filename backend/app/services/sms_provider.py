@@ -158,17 +158,29 @@ def get_sms_provider(
 ) -> SMSProvider:
     """
     Factory function to retrieve gateway selection instance based on priority order:
-    1. NOTIFY (if gateway is NOTIFY or NOTIFY_USER_ID / NOTIFY_API_KEY exist)
-    2. SMSLENZ (if gateway is SMSLENZ or SMSLENZ credentials exist)
-    3. TWILIO
-    4. MOCK
+    1. ESMS / DIALOG_ESMS (if gateway is ESMS or ESMS_USERNAME / ESMS_PASSWORD exist)
+    2. NOTIFY (if gateway is NOTIFY or NOTIFY_USER_ID / NOTIFY_API_KEY exist)
+    3. SMSLENZ (if gateway is SMSLENZ or SMSLENZ credentials exist)
+    4. TWILIO
+    5. MOCK
     """
+    from app.services.providers.esms_provider import DialogESMSProvider
     from app.services.providers.smslenz_provider import SMSLenzProvider
     from app.services.providers.notify_provider import NotifySMSProvider
 
-    gw_name = (gateway or getattr(settings, "SMS_GATEWAY", None) or "SMSLENZ").upper()
+    gw_name = (gateway or getattr(settings, "SMS_GATEWAY", None) or "ESMS").upper()
 
-    if gw_name == "NOTIFY" or (getattr(settings, "NOTIFY_USER_ID", None) and getattr(settings, "NOTIFY_API_KEY", None)):
+    if gw_name in ("ESMS", "DIALOG", "DIALOG_ESMS") or (getattr(settings, "ESMS_USERNAME", None) and getattr(settings, "ESMS_PASSWORD", None)):
+        return DialogESMSProvider(
+            username=getattr(settings, "ESMS_USERNAME", None) or api_key,
+            password=getattr(settings, "ESMS_PASSWORD", None) or api_secret,
+            sender_id=sender_id or getattr(settings, "ESMS_DEFAULT_MASK", None) or "CAFECHAI",
+            base_url=getattr(settings, "ESMS_BASE_URL", None),
+            auth_url=getattr(settings, "ESMS_AUTH_URL", None),
+            payment_method=getattr(settings, "ESMS_PAYMENT_METHOD", 0),
+            delivery_report_url=getattr(settings, "ESMS_DELIVERY_REPORT_URL", None)
+        )
+    elif gw_name == "NOTIFY" or (getattr(settings, "NOTIFY_USER_ID", None) and getattr(settings, "NOTIFY_API_KEY", None)):
         return NotifySMSProvider(
             user_id=getattr(settings, "NOTIFY_USER_ID", None) or api_key,
             api_key=getattr(settings, "NOTIFY_API_KEY", None) or api_secret,
@@ -184,4 +196,5 @@ def get_sms_provider(
         return TwilioSMSProvider(account_sid=api_key, auth_token=api_secret)
     else:
         return MockSMSProvider()
+
 

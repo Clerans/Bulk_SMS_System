@@ -1,7 +1,7 @@
 import enum
 import uuid
 from datetime import datetime
-from sqlalchemy import Enum, ForeignKey, Integer, String, Text, DateTime
+from sqlalchemy import BigInteger, Enum, Float, ForeignKey, Integer, String, Text, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -66,10 +66,22 @@ class Campaign(Base, TimestampMixin, SoftDeleteMixin):
     sms_units: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     route: Mapped[str] = mapped_column(String(50), nullable=False, default="Default Route")
     
-    # Enterprise Enhancements
+    # Enterprise & Gateway Enhancements
     gateway: Mapped[str | None] = mapped_column(String(50), nullable=True, default="Notify.lk")
     queue_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # Dialog eSMS attributes
+    transaction_id: Mapped[int | None] = mapped_column(BigInteger, unique=True, nullable=True, index=True)
+    gateway_campaign_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    payment_method: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    cost: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    wallet_balance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    valid_recipients: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    invalid_recipients: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    duplicate_recipients: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    submitted_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     scheduled_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -119,10 +131,18 @@ class CampaignRecipient(Base):
     error_message: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sms_units: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
-    # Enterprise Enhancements
+    # Enterprise & Gateway Details
+    normalized_mobile_number: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    gateway_status_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    gateway_campaign_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    submission_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     gateway_message_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     gateway_response: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     campaign = relationship("Campaign", back_populates="recipients")

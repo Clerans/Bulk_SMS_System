@@ -62,8 +62,8 @@ export function SendSMSPage() {
     templatesService.getTemplates().then(setTemplates);
     settingsService.getSettings().then((res) => {
       setSettings(res);
-      setSenderId(res.defaultSenderId || "CAFECHAI");
-      setRouteId(res.defaultRoute || "route_02");
+      setSenderId(res.defaultSenderId || "UMG Lanka");
+      setRouteId(res.defaultRoute || "route_01");
     });
   }, []);
 

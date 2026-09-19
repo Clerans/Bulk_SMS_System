@@ -31,6 +31,16 @@ class Settings(BaseSettings):
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8000"]
 
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def assemble_db_connection(cls, v: str) -> str:
+        if isinstance(v, str):
+            if v.startswith("postgres://"):
+                return v.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif v.startswith("postgresql://") and not v.startswith("postgresql+asyncpg://"):
+                return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
@@ -55,6 +65,21 @@ class Settings(BaseSettings):
     NOTIFY_API_KEY: Union[str, None] = None
     NOTIFY_SENDER_ID: Union[str, None] = "NotifyDEMO"
     NOTIFY_BASE_URL: str = "https://app.notify.lk/api/v1"
+
+    # Dialog eSMS Gateway Configurations (Adeona Technologies v3.2)
+    ESMS_BASE_URL: str = "https://e-sms.dialog.lk"
+    ESMS_AUTH_URL: str = "https://esms.dialog.lk"
+    ESMS_USERNAME: Union[str, None] = None
+    ESMS_PASSWORD: Union[str, None] = None
+    ESMS_DEFAULT_MASK: str = "UMG Lanka"
+    ESMS_PAYMENT_METHOD: int = 0
+    ESMS_DELIVERY_REPORT_URL: Union[str, None] = None
+    ESMS_BATCH_SIZE: int = 1000
+    ESMS_SEND_TPS_LIMIT: int = 20
+    ESMS_API_TPS_LIMIT: int = 30
+    ESMS_STATUS_CHECK_TPS_LIMIT: int = 2
+    ESMS_REQUEST_TIMEOUT: float = 30.0
+    ESMS_MAX_RETRIES: int = 3
 
 
 settings = Settings()

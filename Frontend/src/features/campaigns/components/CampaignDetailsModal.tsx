@@ -65,12 +65,12 @@ export function CampaignDetailsModal({ campaign: c, open, onClose }: CampaignDet
         {/* Campaign Info Cards Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <InfoCard label="Sender ID" value={c.senderId} icon={ShieldCheck} highlight />
-          <InfoCard label="Gateway" value={c.gateway || "Notify.lk"} icon={Server} />
+          <InfoCard label="Gateway" value={c.gateway || "Dialog eSMS"} icon={Server} />
+          <InfoCard label="Transaction ID" value={c.transactionId ? String(c.transactionId) : "N/A"} icon={Clock} mono />
+          <InfoCard label="Gateway Camp ID" value={c.gatewayCampaignId || "N/A"} icon={Server} mono />
           <InfoCard label="Route" value={c.route || "Default Route"} icon={Zap} />
           <InfoCard label="Template" value={c.template || "Custom / None"} icon={Activity} />
-          <InfoCard label="Created By" value={c.createdBy || "System"} icon={Users} />
-          <InfoCard label="Queue ID (Celery)" value={c.queueId || "N/A"} icon={Clock} mono />
-          <InfoCard label="Retry Count" value={`${c.retryCount || 0} attempts`} icon={Activity} />
+          <InfoCard label="Cost (LKR)" value={c.cost !== undefined ? `Rs. ${Number(c.cost).toFixed(2)}` : "N/A"} icon={Zap} />
           <InfoCard label="Delivery Rate" value={deliveredRate} icon={CheckCircle2} />
         </div>
 
