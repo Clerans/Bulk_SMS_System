@@ -82,7 +82,7 @@ Once the backend services are running, proceed to the **Frontend Setup** section
    ```bash
    python -m app.database.seed
    ```
-   * *Note: Default admin account created is `anika@cafechai.lk` with password `admin123`.*
+   * *Note: Default seeded Super Admin account is `superadmin@bulksms.lk` with password `admin123`.*
 6. Start the FastAPI application server:
    ```bash
    python -m uvicorn app.main:app --reload --port 8000

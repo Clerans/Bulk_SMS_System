@@ -69,9 +69,10 @@ npm run dev
 
 ## 🔑 Default Credentials & Configurations
 
-### Default Login
-- **Email**: `anika@cafechai.lk`
-- **Password**: `admin123`
+### Default Seeded Accounts
+- **Super Admin**: `superadmin@bulksms.lk` / `admin123` (Role: `SUPERADMIN`)
+- **Branch Admin**: `admin@cafechai.lk` / `admin123` (Role: `ADMIN`)
+- **Operator**: `operator@cafechai.lk` / `operator123` (Role: `OPERATOR`)
 
 ### SMS Gateway Configuration (`backend/.env`)
 The system is configured to use Notify.lk:
