@@ -139,8 +139,8 @@ export function SendSMSPage() {
       });
       toast.success(scheduleType === "NOW" ? "Campaign sent successfully." : "Campaign scheduled successfully.");
       navigate("/campaigns");
-    } catch {
-      toast.error("Failed to create campaign. Please try again.");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to create campaign. Please try again.");
     } finally {
       setSubmitting(false);
     }
