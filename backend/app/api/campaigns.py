@@ -83,8 +83,12 @@ async def format_campaign_dict(db: AsyncSession, campaign: Campaign) -> dict:
         "route": c.route,
         "template": template_val,
         "createdBy": created_by_val,
-        "gateway": getattr(c, "gateway", None) or "Notify.lk",
+        "gateway": getattr(c, "gateway", None) or "Dialog eSMS",
         "queueId": getattr(c, "queue_id", None),
+        "transactionId": getattr(c, "transaction_id", None),
+        "gatewayCampaignId": getattr(c, "gateway_campaign_id", None),
+        "cost": getattr(c, "cost", 0.0) or 0.0,
+        "walletBalance": getattr(c, "wallet_balance", None),
         "messageIds": msg_ids,
         "retryCount": getattr(c, "retry_count", 0) or 0,
         "progress": progress_obj,
@@ -142,6 +146,43 @@ async def get_campaign(
         "success": True,
         "message": "Campaign retrieved successfully",
         "data": c_data,
+        "errors": None
+    }
+
+@router.get("/{campaign_id}/progress", response_model=None, dependencies=[Depends(require_viewer)])
+async def get_campaign_progress(
+    campaign_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Retrieve real-time delivery and progress metrics for a specific campaign.
+    """
+    campaign = await campaign_repository.get(db, id=campaign_id)
+    if not campaign:
+        raise NotFoundException(message="Campaign not found")
+
+    total = campaign.recipient_count or 0
+    delivered = campaign.delivered_count or 0
+    failed = campaign.failed_count or 0
+    pending = campaign.pending_count or 0
+    submitted = max(0, total - pending)
+    pct = round((submitted / total * 100), 1) if total > 0 else 0.0
+
+    return {
+        "success": True,
+        "message": "Campaign progress retrieved",
+        "data": {
+            "campaign_id": str(campaign.id),
+            "status": campaign.status.value,
+            "total": total,
+            "submitted": submitted,
+            "delivered": delivered,
+            "failed": failed,
+            "pending": pending,
+            "progress_percentage": pct,
+            "transaction_id": campaign.transaction_id,
+            "gateway_campaign_id": campaign.gateway_campaign_id
+        },
         "errors": None
     }
 

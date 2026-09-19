@@ -62,8 +62,12 @@ class CampaignResponse(BaseModel):
     
     template: Optional[str] = None
     created_by: Optional[str] = Field(None, serialization_alias="createdBy")
-    gateway: Optional[str] = "Notify.lk"
+    gateway: Optional[str] = "Dialog eSMS"
     queue_id: Optional[str] = Field(None, serialization_alias="queueId")
+    transaction_id: Optional[int] = Field(None, serialization_alias="transactionId")
+    gateway_campaign_id: Optional[str] = Field(None, serialization_alias="gatewayCampaignId")
+    cost: float = 0.0
+    wallet_balance: Optional[float] = Field(None, serialization_alias="walletBalance")
     message_ids: List[str] = Field(default_factory=list, serialization_alias="messageIds")
     retry_count: int = Field(0, serialization_alias="retryCount")
     progress: Optional[dict] = None
@@ -76,5 +80,6 @@ class CampaignResponse(BaseModel):
     class Config:
         from_attributes = True
         populate_by_name = True
+
 
     # Pydantic v2 allows mapping python timezone aware datetimes natively
