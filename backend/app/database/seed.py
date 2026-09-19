@@ -11,7 +11,7 @@ async def seed_users(db: AsyncSession) -> None:
     logger.info("Seeding default users...")
     
     # 1. Default Super Admin User
-    admin_email = "anika@cafechai.lk"
+    admin_email = "superadmin@bulksms.lk"
     admin = await user_repository.get_by_email(db, email=admin_email)
     if not admin:
         admin_data = {

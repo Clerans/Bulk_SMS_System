@@ -34,7 +34,7 @@ docker ps
 ```
 
 ### 3. Initialize & Seed Database (Run once on new database)
-To create tables and add the default admin user (`anika@cafechai.lk` / `admin123`):
+To create tables and add the default accounts (`superadmin@bulksms.lk` / `admin123`):
 ```powershell
 docker exec -it BULK_SMS-backend python -m app.database.seed
 ```
