@@ -157,12 +157,16 @@ def get_sms_provider(
     sender_id: Optional[str] = None
 ) -> SMSProvider:
     """
-    Factory function to retrieve gateway selection instance based on priority order:
-    1. ESMS / DIALOG_ESMS (if gateway is ESMS or ESMS_USERNAME / ESMS_PASSWORD exist)
-    2. NOTIFY (if gateway is NOTIFY or NOTIFY_USER_ID / NOTIFY_API_KEY exist)
-    3. SMSLENZ (if gateway is SMSLENZ or SMSLENZ credentials exist)
-    4. TWILIO
-    5. MOCK
+    Factory function to retrieve the configured SMS Gateway Provider instance.
+    Explicitly selects the provider based on configuration (SMS_GATEWAY) or passed argument.
+    Does NOT silently fall back or switch providers unexpectedly.
+    
+    Hierarchy:
+    1. ESMS / DIALOG (Dialog eSMS API v2/v3 - Primary)
+    2. SMSLENZ (SMSLenz Gateway)
+    3. NOTIFY (Notify.lk Gateway)
+    4. TWILIO (Twilio Adapter)
+    5. MOCK (Local development simulator)
     """
     from app.services.providers.esms_provider import DialogESMSProvider
     from app.services.providers.smslenz_provider import SMSLenzProvider
@@ -170,7 +174,7 @@ def get_sms_provider(
 
     gw_name = (gateway or getattr(settings, "SMS_GATEWAY", None) or "ESMS").upper()
 
-    if gw_name in ("ESMS", "DIALOG", "DIALOG_ESMS") or (getattr(settings, "ESMS_USERNAME", None) and getattr(settings, "ESMS_PASSWORD", None)):
+    if gw_name in ("ESMS", "DIALOG", "DIALOG_ESMS"):
         return DialogESMSProvider(
             username=getattr(settings, "ESMS_USERNAME", None) or api_key,
             password=getattr(settings, "ESMS_PASSWORD", None) or api_secret,
@@ -178,23 +182,29 @@ def get_sms_provider(
             base_url=getattr(settings, "ESMS_BASE_URL", None),
             auth_url=getattr(settings, "ESMS_AUTH_URL", None),
             payment_method=getattr(settings, "ESMS_PAYMENT_METHOD", 0),
-            delivery_report_url=getattr(settings, "ESMS_DELIVERY_REPORT_URL", None)
+            delivery_report_url=getattr(settings, "ESMS_DELIVERY_REPORT_URL", None),
+            batch_size=getattr(settings, "ESMS_BATCH_SIZE", 1000)
         )
-    elif gw_name == "NOTIFY" or (getattr(settings, "NOTIFY_USER_ID", None) and getattr(settings, "NOTIFY_API_KEY", None)):
-        return NotifySMSProvider(
-            user_id=getattr(settings, "NOTIFY_USER_ID", None) or api_key,
-            api_key=getattr(settings, "NOTIFY_API_KEY", None) or api_secret,
-            sender_id=sender_id or getattr(settings, "NOTIFY_SENDER_ID", None) or "NotifyDEMO"
-        )
-    elif gw_name == "SMSLENZ" or (settings.SMSLENZ_USER_ID and settings.SMSLENZ_API_KEY):
+    elif gw_name == "SMSLENZ":
         return SMSLenzProvider(
             user_id=getattr(settings, "SMSLENZ_USER_ID", None) or api_key,
             api_key=getattr(settings, "SMSLENZ_API_KEY", None) or api_secret,
-            sender_id=sender_id or getattr(settings, "SMSLENZ_SENDER_ID", None) or "CAFECHAI"
+            sender_id=sender_id or getattr(settings, "SMSLENZ_SENDER_ID", None) or "CAFECHAI",
+            base_url=getattr(settings, "SMSLENZ_BASE_URL", None) or "https://smslenz.lk/api"
         )
-    elif gw_name == "TWILIO" and api_key and api_secret:
-        return TwilioSMSProvider(account_sid=api_key, auth_token=api_secret)
+    elif gw_name == "NOTIFY":
+        return NotifySMSProvider(
+            user_id=getattr(settings, "NOTIFY_USER_ID", None) or api_key,
+            api_key=getattr(settings, "NOTIFY_API_KEY", None) or api_secret,
+            sender_id=sender_id or getattr(settings, "NOTIFY_SENDER_ID", None) or "NotifyDEMO",
+            base_url=getattr(settings, "NOTIFY_BASE_URL", None) or "https://app.notify.lk/api/v1"
+        )
+    elif gw_name == "TWILIO":
+        return TwilioSMSProvider(account_sid=api_key or "", auth_token=api_secret or "")
+    elif gw_name == "MOCK":
+        return MockSMSProvider()
     else:
+        logger.warning(f"Unknown SMS gateway '{gw_name}', falling back to MockSMSProvider.")
         return MockSMSProvider()
 
 

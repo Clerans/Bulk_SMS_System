@@ -302,8 +302,11 @@ async def test_esms_delivery_report_webhook_status_flow(client: httpx.AsyncClien
     - Status 1 (SMSC Submitted) -> sets SUBMITTED
     - Status 3 (Delivered) -> sets DELIVERED
     - Out-of-order Status 1 after Status 3 -> preserves DELIVERED
+    - Verifies CampaignBatch and parent Campaign statistics recalculation
     """
-    # 1. Create Campaign, Contact & CampaignRecipient
+    from app.models.campaign_batch import CampaignBatch, BatchStatus
+
+    # 1. Create Campaign, Contact, CampaignBatch & CampaignRecipient
     contact = Contact(
         first_name="Kasun",
         last_name="Perera",
@@ -323,14 +326,32 @@ async def test_esms_delivery_report_webhook_status_flow(client: httpx.AsyncClien
         pending_count=1,
         delivered_count=0,
         failed_count=0,
+        submitted_count=0,
         gateway_campaign_id="999"
     )
     db_session.add(campaign)
     await db_session.commit()
     await db_session.refresh(campaign)
 
+    batch = CampaignBatch(
+        campaign_id=campaign.id,
+        batch_number=1,
+        transaction_id=100001,
+        gateway_campaign_id="999",
+        recipient_count=1,
+        accepted_count=1,
+        submitted_count=1,
+        delivered_count=0,
+        failed_count=0,
+        status=BatchStatus.SUBMITTED
+    )
+    db_session.add(batch)
+    await db_session.commit()
+    await db_session.refresh(batch)
+
     recipient = CampaignRecipient(
         campaign_id=campaign.id,
+        batch_id=batch.id,
         contact_id=contact.id,
         status=DeliveryStatus.PENDING,
         normalized_mobile_number="714551682",
@@ -359,18 +380,30 @@ async def test_esms_delivery_report_webhook_status_flow(client: httpx.AsyncClien
     await db_session.refresh(recipient)
     assert recipient.status == DeliveryStatus.DELIVERED
 
+    # Verify Batch and Campaign completed
+    await db_session.refresh(batch)
+    assert batch.delivered_count == 1
+    assert batch.status == BatchStatus.COMPLETED
+
+    await db_session.refresh(campaign)
+    assert campaign.delivered_count == 1
+    assert campaign.status == CampaignStatus.COMPLETED
+
     # 4. Out-of-order late Status 1 arrival should NOT overwrite DELIVERED
     resp1_late = await client.get("/sms/delivery-report?campaignId=999&msisdn=94714551682&status=1")
     assert resp1_late.status_code == 200
 
     await db_session.refresh(recipient)
     assert recipient.status == DeliveryStatus.DELIVERED
+    await db_session.refresh(campaign)
+    assert campaign.status == CampaignStatus.COMPLETED
 
     # 5. Check DeliveryEvents recorded
     events_query = select(DeliveryEvent).where(DeliveryEvent.gateway_campaign_id == "999")
     events_res = await db_session.execute(events_query)
     events = list(events_res.scalars().all())
     assert len(events) >= 3
+    assert events[0].batch_id == batch.id
 
 
 # =========================================================================

@@ -100,6 +100,12 @@ class Campaign(Base, TimestampMixin, SoftDeleteMixin):
         back_populates="campaign",
         cascade="all, delete-orphan"
     )
+    batches = relationship(
+        "CampaignBatch",
+        back_populates="campaign",
+        cascade="all, delete-orphan",
+        order_by="CampaignBatch.batch_number"
+    )
 
 class CampaignRecipient(Base):
     """
@@ -118,13 +124,19 @@ class CampaignRecipient(Base):
         ForeignKey("campaigns.id", ondelete="CASCADE"),
         nullable=False
     )
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("campaign_batches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
     contact_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("contacts.id", ondelete="CASCADE"),
         nullable=False
     )
     status: Mapped[DeliveryStatus] = mapped_column(
-        Enum(DeliveryStatus, name="delivery_status_enum"),
+        Enum(DeliveryStatus, name="delivery_status_enum", values_callable=lambda x: [e.value for e in x]),
         default=DeliveryStatus.PENDING,
         nullable=False
     )
@@ -146,4 +158,5 @@ class CampaignRecipient(Base):
 
     # Relationships
     campaign = relationship("Campaign", back_populates="recipients")
-    contact = relationship("Contact")
+    batch = relationship("CampaignBatch", back_populates="recipients", lazy="joined")
+    contact = relationship("Contact", lazy="joined")

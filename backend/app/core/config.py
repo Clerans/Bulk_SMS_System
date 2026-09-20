@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 60
 
     # SMS Gateway Configurations
-    SMS_GATEWAY: str = "SMSLENZ"
+    SMS_GATEWAY: str = "ESMS"
     SMSLENZ_USER_ID: Union[str, None] = None
     SMSLENZ_API_KEY: Union[str, None] = None
     SMSLENZ_SENDER_ID: Union[str, None] = "CAFECHAI"
@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     NOTIFY_SENDER_ID: Union[str, None] = "NotifyDEMO"
     NOTIFY_BASE_URL: str = "https://app.notify.lk/api/v1"
 
-    # Dialog eSMS Gateway Configurations (Adeona Technologies v3.2)
+    # Dialog eSMS Gateway Configurations (API v2 / v3)
     ESMS_BASE_URL: str = "https://e-sms.dialog.lk"
     ESMS_AUTH_URL: str = "https://esms.dialog.lk"
     ESMS_USERNAME: Union[str, None] = None

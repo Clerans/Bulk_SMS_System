@@ -96,7 +96,12 @@ class ESMSTokenManager:
     def __init__(self):
         self._access_token: Optional[str] = None
         self._expires_at: float = 0.0
-        self._lock = asyncio.Lock()
+        self._lock: Optional[asyncio.Lock] = None
+
+    def _get_lock(self) -> asyncio.Lock:
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     @classmethod
     def get_instance(cls) -> "ESMSTokenManager":
@@ -111,6 +116,7 @@ class ESMSTokenManager:
     def invalidate_token(self) -> None:
         self._access_token = None
         self._expires_at = 0.0
+        self._lock = None
 
     async def get_access_token(
         self,
@@ -123,7 +129,7 @@ class ESMSTokenManager:
         if not force_refresh and self.is_token_valid() and self._access_token:
             return self._access_token
 
-        async with self._lock:
+        async with self._get_lock():
             # Double-check after acquiring lock
             if not force_refresh and self.is_token_valid() and self._access_token:
                 return self._access_token
@@ -229,13 +235,23 @@ class DialogESMSProvider(SMSProvider):
     @classmethod
     def generate_unique_transaction_id(cls) -> int:
         """
-        Generates a unique 64-bit integer between 1 and 18 digits for eSMS transaction_id.
-        Combines current epoch millisecond with incrementing counter.
-        Example output: 1726743123456001 (16 digits)
+        Generates a unique 64-bit integer (between 1 and 18 digits) for eSMS transaction_id.
+        Combines current epoch millisecond with incrementing counter and worker salt.
+        Safe across restarts and concurrent Celery workers.
         """
-        cls._tx_counter = (cls._tx_counter + 1) % 1000
-        epoch_ms = int(time.time() * 1000)
-        return int(f"{epoch_ms}{cls._tx_counter:03d}")
+        try:
+            import redis
+            r = redis.Redis.from_url(settings.REDIS_URL, socket_connect_timeout=0.05, socket_timeout=0.05)
+            seq = r.incr("esms_tx_sequence") % 100000
+            epoch_ms = int(time.time() * 1000)
+            return int(f"{epoch_ms}{seq:05d}")
+        except Exception:
+            # Fallback to local in-process generator with millisecond + process salt + counter
+            import random
+            cls._tx_counter = (cls._tx_counter + 1) % 1000
+            epoch_ms = int(time.time() * 1000)
+            salt = random.randint(10, 99)
+            return int(f"{epoch_ms}{salt}{cls._tx_counter:03d}")
 
     async def _get_auth_header(self, force_refresh: bool = False) -> Dict[str, str]:
         if not self.username or not self.password:

@@ -29,7 +29,8 @@ async def format_campaign_dict(db: AsyncSession, campaign: Campaign) -> dict:
         .options(
             selectinload(Campaign.creator),
             selectinload(Campaign.template),
-            selectinload(Campaign.recipients)
+            selectinload(Campaign.recipients),
+            selectinload(Campaign.batches)
         )
         .where(Campaign.id == campaign.id)
     )
@@ -69,6 +70,29 @@ async def format_campaign_dict(db: AsyncSession, campaign: Campaign) -> dict:
     created_by_val = c.creator.name if (hasattr(c, "creator") and c.creator and getattr(c.creator, "name", None)) else (c.creator.email if hasattr(c, "creator") and c.creator else "System")
     template_val = c.template.name if (hasattr(c, "template") and c.template and getattr(c.template, "name", None)) else None
 
+    # Format batches
+    batches_data = []
+    if hasattr(c, "batches") and c.batches:
+        for b in c.batches:
+            batches_data.append({
+                "id": str(b.id),
+                "batchNumber": b.batch_number,
+                "transactionId": b.transaction_id,
+                "gatewayCampaignId": b.gateway_campaign_id,
+                "recipientCount": b.recipient_count,
+                "acceptedCount": b.accepted_count,
+                "submittedCount": b.submitted_count,
+                "deliveredCount": b.delivered_count,
+                "failedCount": b.failed_count,
+                "status": b.status.value if hasattr(b.status, "value") else str(b.status),
+                "cost": b.cost,
+                "errorCode": b.error_code,
+                "errorMessage": b.error_message,
+                "startedAt": b.started_at.isoformat() if b.started_at else None,
+                "completedAt": b.completed_at.isoformat() if b.completed_at else None,
+                "createdAt": b.created_at.isoformat() if b.created_at else None,
+            })
+
     return {
         "id": str(c.id),
         "name": c.name,
@@ -79,6 +103,7 @@ async def format_campaign_dict(db: AsyncSession, campaign: Campaign) -> dict:
         "deliveredCount": c.delivered_count,
         "failedCount": c.failed_count,
         "pendingCount": c.pending_count,
+        "submittedCount": c.submitted_count,
         "smsUnits": c.sms_units,
         "route": c.route,
         "template": template_val,
@@ -91,6 +116,7 @@ async def format_campaign_dict(db: AsyncSession, campaign: Campaign) -> dict:
         "walletBalance": getattr(c, "wallet_balance", None),
         "messageIds": msg_ids,
         "retryCount": getattr(c, "retry_count", 0) or 0,
+        "batches": batches_data,
         "progress": progress_obj,
         "statusBreakdown": breakdown,
         "scheduledAt": c.scheduled_time.isoformat() if getattr(c, "scheduled_time", None) else None,
@@ -135,7 +161,7 @@ async def get_campaign(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Retrieve details of a single campaign, including its stats and enterprise metadata.
+    Retrieve details of a single campaign, including its stats, batch breakdown, and enterprise metadata.
     """
     campaign = await campaign_repository.get(db, id=campaign_id)
     if not campaign:
@@ -193,18 +219,22 @@ async def create_campaign(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Create a new SMS Campaign, link target contacts (manual/group), and queue for dispatch.
+    Create a new SMS Campaign, link target contacts (manual/CSV/groups), validate SMS segmentation and balance, and queue for dispatch.
     """
     require_operator(current_user)
 
-    # 1. Resolve recipients contacts list
+    from app.repositories.setting import setting_repository
+    from app.services.sms_segment_service import sms_segment_service
+    from app.services.providers.esms_provider import DialogESMSProvider
+
+    # 1. Resolve and validate recipient contacts
     contacts = []
+    source_upper = (data.recipient_source or "GROUPS").upper()
     
-    if data.recipient_source == "GROUPS":
+    if source_upper == "GROUPS":
         if not data.group_ids:
-            raise BadRequestException(message="Group IDs are required when source is 'GROUPS'")
+            raise BadRequestException(message="Group IDs are required when recipientSource is 'GROUPS'")
         
-        # Select active contacts that belong to any of these group IDs
         query = select(Contact).join(group_contacts).where(
             group_contacts.c.group_id.in_(data.group_ids),
             Contact.is_deleted == False
@@ -212,19 +242,20 @@ async def create_campaign(
         res = await db.execute(query)
         contacts = list(res.scalars().all())
         
-    elif data.recipient_source == "MANUAL":
+    elif source_upper in ("MANUAL", "CSV"):
         if not data.recipients:
-            raise BadRequestException(message="Recipients list is required when source is 'MANUAL'")
+            raise BadRequestException(message=f"Recipients list is required when recipientSource is '{source_upper}'")
             
         for r in data.recipients:
-            norm_phone = file_service.normalize_phone(r.phone)
+            raw_phone = r.phone if hasattr(r, "phone") else str(r)
+            norm_phone = file_service.normalize_phone(raw_phone)
             if not norm_phone:
                 continue
                 
             contact = await contact_repository.get_by_phone(db, phone=norm_phone)
             if not contact:
-                # Auto-create contact record
-                names = r.name.split(" ", 1)
+                name_str = (r.name if hasattr(r, "name") and r.name else "").strip() or "Recipient"
+                names = name_str.split(" ", 1)
                 fname = names[0]
                 lname = names[1] if len(names) > 1 else "Contact"
                 contact = await contact_repository.create(db, obj_in={
@@ -236,20 +267,38 @@ async def create_campaign(
             contacts.append(contact)
             
     else:
-        raise BadRequestException(message="Invalid recipient source.")
+        raise BadRequestException(message=f"Invalid recipient source '{data.recipient_source}'. Supported sources: GROUPS, CSV, MANUAL.")
 
     if not contacts:
         raise BadRequestException(message="No valid target contacts found for this campaign.")
 
-    # Deduplicate contacts
+    # Deduplicate contacts by ID and phone number
     seen_ids = set()
+    seen_phones = set()
     unique_contacts = []
     for c in contacts:
-        if c.id not in seen_ids:
+        if c.id not in seen_ids and c.phone not in seen_phones:
             seen_ids.add(c.id)
+            seen_phones.add(c.phone)
             unique_contacts.append(c)
 
-    # 2. Insert Campaign record
+    recipient_count = len(unique_contacts)
+    if recipient_count == 0:
+        raise BadRequestException(message="All provided phone numbers were invalid or duplicates.")
+
+    # 2. Authoritative Backend SMS Segmentation & Balance Check
+    total_sms_units, segments_per_msg, encoding = sms_segment_service.calculate_campaign_sms_units(
+        message=data.message,
+        recipient_count=recipient_count
+    )
+
+    app_settings = await setting_repository.get_settings(db)
+    if app_settings.sms_balance < total_sms_units:
+        raise BadRequestException(
+            message=f"Insufficient SMS credits. Campaign requires {total_sms_units} SMS units ({recipient_count} recipients × {segments_per_msg} segments [{encoding}]), but available balance is {app_settings.sms_balance}."
+        )
+
+    # 3. Create Campaign record
     campaign_status = CampaignStatus.QUEUED if data.schedule_type == "NOW" else CampaignStatus.SCHEDULED
     
     campaign_data = {
@@ -260,28 +309,30 @@ async def create_campaign(
         "status": campaign_status,
         "route": data.route_id,
         "scheduled_time": data.scheduled_at if data.schedule_type == "SCHEDULED" else None,
-        "recipient_count": len(unique_contacts),
-        "pending_count": len(unique_contacts),
-        "sms_units": len(unique_contacts), # Simple calculation: 1 unit per recipient
+        "recipient_count": recipient_count,
+        "pending_count": recipient_count,
+        "sms_units": total_sms_units,
         "created_by": current_user.id
     }
     
     db_campaign = await campaign_repository.create(db, obj_in=campaign_data)
 
-    # 3. Create CampaignRecipient records
+    # 4. Create CampaignRecipient records
     for contact in unique_contacts:
+        is_valid_dialog, norm_9digit = DialogESMSProvider.normalize_dialog_mobile(contact.phone)
         recipient = CampaignRecipient(
             campaign_id=db_campaign.id,
             contact_id=contact.id,
             status=DeliveryStatus.PENDING,
-            sms_units=1
+            sms_units=segments_per_msg,
+            normalized_mobile_number=norm_9digit if is_valid_dialog else None
         )
         db.add(recipient)
         
     await db.commit()
     await db.refresh(db_campaign)
 
-    # Audit Logging
+    # 5. Audit Logging
     await audit_service.log_action(
         db,
         user_id=current_user.id,
@@ -289,12 +340,15 @@ async def create_campaign(
         details={
             "campaign_id": str(db_campaign.id),
             "name": db_campaign.name,
-            "recipient_count": db_campaign.recipient_count,
+            "recipient_count": recipient_count,
+            "sms_units": total_sms_units,
+            "segments_per_msg": segments_per_msg,
+            "encoding": encoding,
             "scheduled_time": str(db_campaign.scheduled_time) if db_campaign.scheduled_time else None
         }
     )
 
-    # 4. Trigger Celery Task immediately if "NOW"
+    # 6. Trigger Celery Task immediately if "NOW"
     if data.schedule_type == "NOW":
         try:
             process_sms_campaign.delay(str(db_campaign.id))

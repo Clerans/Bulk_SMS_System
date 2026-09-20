@@ -26,6 +26,12 @@ class DeliveryEvent(Base):
         nullable=True,
         index=True
     )
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("campaign_batches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
     campaign_recipient_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("campaign_recipients.id", ondelete="SET NULL"),
@@ -35,6 +41,7 @@ class DeliveryEvent(Base):
     gateway_campaign_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     mobile_number: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     gateway_status: Mapped[int] = mapped_column(Integer, nullable=False)
+    normalized_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     event_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     raw_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
     
@@ -46,4 +53,5 @@ class DeliveryEvent(Base):
 
     # Relationships
     campaign = relationship("Campaign")
+    batch = relationship("CampaignBatch", back_populates="delivery_events")
     recipient = relationship("CampaignRecipient")
