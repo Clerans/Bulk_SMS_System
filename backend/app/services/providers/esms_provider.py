@@ -232,6 +232,9 @@ class DialogESMSProvider(SMSProvider):
         is_valid = bool(len(cleaned) == 9 and cls.PHONE_9DIGIT_PATTERN.match(cleaned))
         return is_valid, cleaned
 
+    _redis_client = None
+    _redis_checked: bool = False
+
     @classmethod
     def generate_unique_transaction_id(cls) -> int:
         """
@@ -239,19 +242,31 @@ class DialogESMSProvider(SMSProvider):
         Combines current epoch millisecond with incrementing counter and worker salt.
         Safe across restarts and concurrent Celery workers.
         """
-        try:
-            import redis
-            r = redis.Redis.from_url(settings.REDIS_URL, socket_connect_timeout=0.05, socket_timeout=0.05)
-            seq = r.incr("esms_tx_sequence") % 100000
-            epoch_ms = int(time.time() * 1000)
-            return int(f"{epoch_ms}{seq:05d}")
-        except Exception:
-            # Fallback to local in-process generator with millisecond + process salt + counter
-            import random
-            cls._tx_counter = (cls._tx_counter + 1) % 1000
-            epoch_ms = int(time.time() * 1000)
-            salt = random.randint(10, 99)
-            return int(f"{epoch_ms}{salt}{cls._tx_counter:03d}")
+        import random
+        if not cls._redis_checked:
+            try:
+                import redis
+                client = redis.Redis.from_url(settings.REDIS_URL, socket_connect_timeout=0.05, socket_timeout=0.05)
+                client.ping()
+                cls._redis_client = client
+            except Exception:
+                cls._redis_client = None
+            finally:
+                cls._redis_checked = True
+
+        if cls._redis_client is not None:
+            try:
+                seq = cls._redis_client.incr("esms_tx_sequence") % 100000
+                epoch_ms = int(time.time() * 1000)
+                return int(f"{epoch_ms}{seq:05d}")
+            except Exception:
+                cls._redis_client = None
+
+        # Fallback to in-process monotonic generator with millisecond + salt + counter (always <= 18 digits)
+        cls._tx_counter = (cls._tx_counter + 1) % 1000
+        epoch_ms = int(time.time() * 1000)
+        salt = random.randint(10, 99)
+        return int(f"{epoch_ms}{salt}{cls._tx_counter:03d}")
 
     async def _get_auth_header(self, force_refresh: bool = False) -> Dict[str, str]:
         if not self.username or not self.password:
