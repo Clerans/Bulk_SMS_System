@@ -12,11 +12,11 @@ def publish_event(event_name: str, data: dict):
         **data
     }
     try:
-        r = redis.Redis.from_url(settings.REDIS_URL)
+        r = redis.Redis.from_url(settings.REDIS_URL, socket_connect_timeout=0.1, socket_timeout=0.1)
         r.publish("sms_ws_broadcast", json.dumps(payload))
     except Exception as e:
-        # Safe fallback printing
-        print(f"[REDIS EVENT PUBLISH ERROR] {e}")
+        # Safe fallback
+        pass
 
 def broadcast_campaign_progress(
     campaign_id: str,
