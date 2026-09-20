@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
-from app.main import app
+from app.main import app as fastapi_app
 import app.workers.tasks
 
 # Use SQLite with aiosqlite and StaticPool for fast in-memory tests
@@ -56,12 +56,12 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 
-    app.dependency_overrides[get_db] = override_get_db
+    fastapi_app.dependency_overrides[get_db] = override_get_db
     
     async with AsyncClient(
-        transport=ASGITransport(app=app),
+        transport=ASGITransport(app=fastapi_app),
         base_url="http://testserver/api/v1"
     ) as ac:
         yield ac
         
-    app.dependency_overrides.clear()
+    fastapi_app.dependency_overrides.clear()
