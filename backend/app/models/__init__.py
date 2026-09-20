@@ -4,6 +4,7 @@ from app.models.group import Group, group_contacts
 from app.models.template import SMSTemplate, TemplateCategory
 from app.models.setting import Setting
 from app.models.campaign import Campaign, CampaignRecipient, CampaignStatus, DeliveryStatus
+from app.models.campaign_batch import CampaignBatch, BatchStatus
 from app.models.sms_log import SMSLog
 from app.models.audit_log import AuditLog
 from app.models.gateway_transaction import GatewayTransaction

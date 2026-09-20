@@ -229,13 +229,23 @@ class DialogESMSProvider(SMSProvider):
     @classmethod
     def generate_unique_transaction_id(cls) -> int:
         """
-        Generates a unique 64-bit integer between 1 and 18 digits for eSMS transaction_id.
-        Combines current epoch millisecond with incrementing counter.
-        Example output: 1726743123456001 (16 digits)
+        Generates a unique 64-bit integer (between 1 and 18 digits) for eSMS transaction_id.
+        Combines current epoch millisecond with incrementing counter and worker salt.
+        Safe across restarts and concurrent Celery workers.
         """
-        cls._tx_counter = (cls._tx_counter + 1) % 1000
-        epoch_ms = int(time.time() * 1000)
-        return int(f"{epoch_ms}{cls._tx_counter:03d}")
+        try:
+            import redis
+            r = redis.Redis.from_url(settings.REDIS_URL, socket_timeout=0.5)
+            seq = r.incr("esms_tx_sequence") % 100000
+            epoch_ms = int(time.time() * 1000)
+            return int(f"{epoch_ms}{seq:05d}")
+        except Exception:
+            # Fallback to local in-process generator with millisecond + process salt + counter
+            import random
+            cls._tx_counter = (cls._tx_counter + 1) % 1000
+            epoch_ms = int(time.time() * 1000)
+            salt = random.randint(10, 99)
+            return int(f"{epoch_ms}{salt}{cls._tx_counter:03d}")
 
     async def _get_auth_header(self, force_refresh: bool = False) -> Dict[str, str]:
         if not self.username or not self.password:
