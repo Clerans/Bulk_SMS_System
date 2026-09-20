@@ -366,6 +366,8 @@ async def esms_delivery_report_webhook(
                 sms_log.error_message = status_desc
             db.add(sms_log)
 
+    await db.flush()
+
     # 4. Recalculate Batch Statistics (if batch exists)
     if batch:
         b_stats_q = (
