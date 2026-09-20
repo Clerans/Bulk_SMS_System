@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select, func
@@ -9,16 +10,25 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.exceptions import BadRequestException, NotFoundException
 from app.dependencies.auth import get_current_user, require_operator, require_viewer
-from app.models.campaign import DeliveryStatus
+from app.models.campaign import Campaign, CampaignRecipient, CampaignStatus, DeliveryStatus
+from app.models.campaign_batch import CampaignBatch, BatchStatus
+from app.models.contact import Contact
+from app.models.delivery_event import DeliveryEvent
 from app.models.sms_log import SMSLog
 from app.models.user import User
 from app.repositories.setting import setting_repository
 from app.schemas.sms import SendBulkSMSRequest, SendSMSRequest
 from app.schemas.report import DeliveryReportResponse
 from app.services.file_service import file_service
-from app.services.sms_provider import MockSMSProvider, TwilioSMSProvider, get_sms_provider
-from app.services.providers.smslenz_provider import SMSLenzProvider
-from app.services.providers.notify_provider import NotifySMSProvider
+from app.services.sms_provider import get_sms_provider
+from app.services.sms_segment_service import sms_segment_service
+from app.services.providers.esms_provider import DialogESMSProvider
+from app.websocket.events import (
+    broadcast_campaign_progress,
+    broadcast_sms_status,
+    broadcast_dashboard_update,
+    broadcast_notification
+)
 
 router = APIRouter(prefix="/sms", tags=["SMS"])
 
@@ -29,7 +39,8 @@ async def send_single_sms(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Send an ad-hoc SMS to a single recipient immediately. Deducts credit or syncs with gateway balance.
+    Send an ad-hoc SMS to a single recipient immediately.
+    Calculates segment count and deducts required SMS units from balance.
     """
     require_operator(current_user)
 
@@ -37,31 +48,19 @@ async def send_single_sms(
     if not normalized_phone:
         raise BadRequestException(message="Invalid phone number format")
 
+    # Authoritative SMS segment calculation
+    seg_metrics = sms_segment_service.calculate_segments(payload.message)
+    required_units = max(1, seg_metrics["segment_count"])
+
     app_settings = await setting_repository.get_settings(db)
-    if app_settings.sms_balance < 1:
-        raise BadRequestException(message="Insufficient SMS balance credits")
-
-    # Gateway Selection Strategy: SMS_GATEWAY env var / NOTIFY credentials -> DB Setting -> Fallback
-    gw_name = (getattr(settings, "SMS_GATEWAY", None) or app_settings.gateway or "SMSLENZ").upper()
-
-    if gw_name == "NOTIFY" or (getattr(settings, "NOTIFY_USER_ID", None) and getattr(settings, "NOTIFY_API_KEY", None)):
-        provider = NotifySMSProvider(
-            user_id=getattr(settings, "NOTIFY_USER_ID", None) or app_settings.api_key,
-            api_key=getattr(settings, "NOTIFY_API_KEY", None) or app_settings.api_secret,
-            sender_id=payload.sender_id or getattr(settings, "NOTIFY_SENDER_ID", None) or app_settings.sender_id or "NotifyDEMO"
+    if app_settings.sms_balance < required_units:
+        raise BadRequestException(
+            message=f"Insufficient SMS credits. Message requires {required_units} SMS units ({seg_metrics['character_count']} chars [{seg_metrics['encoding']}]), but available balance is {app_settings.sms_balance}."
         )
-    elif gw_name == "SMSLENZ" or (settings.SMSLENZ_USER_ID and settings.SMSLENZ_API_KEY):
-        provider = SMSLenzProvider(
-            user_id=settings.SMSLENZ_USER_ID or app_settings.api_key,
-            api_key=settings.SMSLENZ_API_KEY or app_settings.api_secret,
-            sender_id=payload.sender_id or settings.SMSLENZ_SENDER_ID or app_settings.sender_id or "CAFECHAI"
-        )
-    elif gw_name == "TWILIO" and app_settings.api_key and app_settings.api_secret:
-        provider = TwilioSMSProvider(app_settings.api_key, app_settings.api_secret)
-    else:
-        provider = MockSMSProvider()
 
-    sender = payload.sender_id or getattr(settings, "NOTIFY_SENDER_ID", None) or getattr(settings, "SMSLENZ_SENDER_ID", None) or app_settings.default_sender_id or "NotifyDEMO"
+    # Provider resolution
+    provider = get_sms_provider()
+    sender = payload.sender_id or getattr(settings, "ESMS_DEFAULT_MASK", None) or app_settings.default_sender_id or "UMG Lanka"
 
     # Dispatch SMS
     try:
@@ -71,41 +70,43 @@ async def send_single_sms(
             sender_id=sender
         )
         
-        # Synchronize credit balance if provided by gateway response
+        # Deduct balance or sync
         if res.get("sms_credit_balance") is not None:
             try:
                 app_settings.sms_balance = int(float(res["sms_credit_balance"]))
                 db.add(app_settings)
             except Exception:
                 pass
-        elif res["status"] in [DeliveryStatus.ACCEPTED, DeliveryStatus.SENT, DeliveryStatus.DELIVERED]:
-            app_settings.sms_balance -= 1
+        elif res["status"] in [DeliveryStatus.ACCEPTED, DeliveryStatus.SENT, DeliveryStatus.DELIVERED, DeliveryStatus.SUBMITTED]:
+            app_settings.sms_balance -= required_units
             db.add(app_settings)
 
         # Log entry
         log_entry = SMSLog(
             phone=normalized_phone,
             message=payload.message,
-            provider="SMSLENZ" if isinstance(provider, SMSLenzProvider) else app_settings.gateway,
+            provider=getattr(provider, "gateway_name", "Dialog eSMS") if hasattr(provider, "gateway_name") else "Dialog eSMS",
+            sender_id=sender,
             status=res["status"],
-            error_message=res["error_message"],
-            sent_at=res["sent_at"],
-            delivered_at=res["sent_at"] if res["status"] == DeliveryStatus.DELIVERED else None
+            error_message=res.get("error_message"),
+            error_code=res.get("error_code"),
+            gateway_message_id=str(res.get("gateway_campaign_id") or res.get("message_id") or ""),
+            gateway_response=str(res.get("raw_response")) if res.get("raw_response") else None,
+            sent_at=res.get("sent_at") or datetime.now(timezone.utc),
+            delivered_at=res.get("sent_at") if res["status"] == DeliveryStatus.DELIVERED else None
         )
         db.add(log_entry)
         await db.commit()
         await db.refresh(log_entry)
 
-        # Eager load campaign details (None) for response serializer
         log_entry.campaign = None
-
-        is_accepted = res["status"] in [DeliveryStatus.ACCEPTED, DeliveryStatus.SENT, DeliveryStatus.DELIVERED]
+        is_accepted = res["status"] in [DeliveryStatus.ACCEPTED, DeliveryStatus.SENT, DeliveryStatus.DELIVERED, DeliveryStatus.SUBMITTED]
 
         return {
             "success": is_accepted,
-            "message": "SMS request accepted by gateway" if is_accepted else f"SMS dispatch failed: {res['error_message']}",
+            "message": "SMS request accepted by gateway" if is_accepted else f"SMS dispatch failed: {res.get('error_message')}",
             "data": DeliveryReportResponse.model_validate(log_entry),
-            "errors": None if is_accepted else [{"message": res["error_message"] or "SMS dispatch failed"}]
+            "errors": None if is_accepted else [{"message": res.get("error_message") or "SMS dispatch failed"}]
         }
     except Exception as ex:
         raise BadRequestException(message=f"Failed to process SMS dispatch: {str(ex)}")
@@ -124,27 +125,35 @@ async def send_bulk_sms(
     valid_phones = []
     for ph in payload.phones:
         norm = file_service.normalize_phone(ph)
-        if norm:
+        if norm and norm not in valid_phones:
             valid_phones.append(norm)
 
     if not valid_phones:
         raise BadRequestException(message="No valid phone numbers found in request")
 
-    app_settings = await setting_repository.get_settings(db)
-    if app_settings.sms_balance < len(valid_phones):
-        raise BadRequestException(message=f"Insufficient credits. Remaining: {app_settings.sms_balance}")
+    # Authoritative segment calculation
+    total_units, seg_count, encoding = sms_segment_service.calculate_campaign_sms_units(
+        message=payload.message,
+        recipient_count=len(valid_phones)
+    )
 
-    # Import celery tasks inside endpoint to prevent circular importing
+    app_settings = await setting_repository.get_settings(db)
+    if app_settings.sms_balance < total_units:
+        raise BadRequestException(
+            message=f"Insufficient credits. Requires {total_units} SMS units ({len(valid_phones)} recipients × {seg_count} segments [{encoding}]), but available balance is {app_settings.sms_balance}."
+        )
+
     from app.workers.tasks import process_bulk_sms
-    
-    sender = payload.sender_id or app_settings.default_sender_id
+    sender = payload.sender_id or getattr(settings, "ESMS_DEFAULT_MASK", None) or app_settings.default_sender_id or "UMG Lanka"
     process_bulk_sms.delay(valid_phones, payload.message, sender)
 
     return {
         "success": True,
-        "message": f"Bulk SMS queued for {len(valid_phones)} recipients.",
+        "message": f"Bulk SMS queued for {len(valid_phones)} recipients ({total_units} units).",
         "data": {
-            "queued_count": len(valid_phones)
+            "queued_count": len(valid_phones),
+            "total_sms_units": total_units,
+            "segments_per_msg": seg_count
         },
         "errors": None
     }
@@ -160,12 +169,10 @@ async def get_sms_history(
     """
     query = select(SMSLog).options(selectinload(SMSLog.campaign))
     
-    # Get total count
     count_query = select(func.count(SMSLog.id))
     count_res = await db.execute(count_query)
     total = count_res.scalar() or 0
 
-    # Execute paginate
     query = query.order_by(SMSLog.created_at.desc()).offset(skip).limit(limit)
     res = await db.execute(query)
     logs = list(res.scalars().all())
@@ -209,19 +216,6 @@ async def get_sms_status(
 # Official Dialog eSMS Delivery Report Webhook & Gateway Health Endpoints
 # =========================================================================
 
-from datetime import datetime, timezone
-from app.models.campaign import Campaign, CampaignRecipient, CampaignStatus
-from app.models.delivery_event import DeliveryEvent
-from app.models.contact import Contact
-from app.websocket.events import (
-    broadcast_campaign_progress,
-    broadcast_sms_status,
-    broadcast_dashboard_update,
-    broadcast_notification
-)
-from app.services.providers.esms_provider import DialogESMSProvider
-
-
 @router.get("/delivery-report", response_model=None)
 async def esms_delivery_report_webhook(
     campaignId: Optional[str] = Query(None, description="Gateway Campaign ID returned during SMS send"),
@@ -230,16 +224,22 @@ async def esms_delivery_report_webhook(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Official Dialog eSMS v3.2 Delivery Report Webhook Callback Endpoint.
+    Official Dialog eSMS v2/v3 Delivery Report Webhook Callback Endpoint.
     
     Receives HTTP GET request from Dialog eSMS gateway:
     GET /api/v1/sms/delivery-report?campaignId=25&msisdn=94777888665&status=1
     
     Status mapping:
     1 -> SUBMITTED (Successfully submitted to SMSC - not final delivery)
-    2 -> FAILED (SMS submission failed due to invalid number or connectivity failure)
+    2 -> FAILED (SMS submission failed)
     3 -> DELIVERED (Successfully delivered to handset)
     4 -> FAILED (Delivery failed)
+    
+    Key Features:
+    - Matches gateway_campaign_id to CampaignBatch entity (and fallback to Campaign).
+    - Idempotent: Repeated webhooks will not duplicate events or double count.
+    - Out-of-order resolution: Will NOT downgrade DELIVERED (status 3) to SUBMITTED (status 1).
+    - Recalculates both Batch and Parent Campaign statistics.
     """
     if not campaignId or not msisdn or status is None:
         return {
@@ -247,51 +247,67 @@ async def esms_delivery_report_webhook(
             "message": "Missing required parameters (campaignId, msisdn, status)"
         }
 
-    # Normalize incoming mobile number
+    # Normalize incoming mobile number (e.g. 9477... or 077... -> 77...)
     is_valid, norm_9digit = DialogESMSProvider.normalize_dialog_mobile(msisdn)
     clean_msisdn = norm_9digit if is_valid else msisdn.strip()
 
-    # 1. Record raw delivery event for idempotency and audit trail
+    # Map gateway status code to internal DeliveryStatus
+    new_delivery_status: DeliveryStatus
+    status_desc: str
+    norm_status_str: str
+
+    if status == 1:
+        new_delivery_status = DeliveryStatus.SUBMITTED
+        status_desc = "Successfully submitted to SMSC"
+        norm_status_str = "SUBMITTED"
+    elif status == 2:
+        new_delivery_status = DeliveryStatus.FAILED
+        status_desc = "SMS submission failed"
+        norm_status_str = "FAILED"
+    elif status == 3:
+        new_delivery_status = DeliveryStatus.DELIVERED
+        status_desc = "Successfully delivered to recipient handset"
+        norm_status_str = "DELIVERED"
+    elif status == 4:
+        new_delivery_status = DeliveryStatus.FAILED
+        status_desc = "SMS delivery failed"
+        norm_status_str = "FAILED"
+    else:
+        new_delivery_status = DeliveryStatus.PROCESSING
+        status_desc = f"Unknown gateway status code: {status}"
+        norm_status_str = f"STATUS_{status}"
+
+    # 1. Match CampaignBatch and Parent Campaign
+    batch_query = select(CampaignBatch).where(CampaignBatch.gateway_campaign_id == str(campaignId))
+    b_res = await db.execute(batch_query)
+    batch = b_res.scalars().first()
+
+    campaign = None
+    if batch:
+        camp_res = await db.execute(select(Campaign).where(Campaign.id == batch.campaign_id))
+        campaign = camp_res.scalars().first()
+    else:
+        # Fallback to campaign-level gateway_campaign_id
+        camp_res = await db.execute(select(Campaign).where(Campaign.gateway_campaign_id == str(campaignId)))
+        campaign = camp_res.scalars().first()
+
+    # 2. Record DeliveryEvent for audit trail and idempotency
     delivery_event = DeliveryEvent(
+        campaign_id=campaign.id if campaign else None,
+        batch_id=batch.id if batch else None,
         gateway_campaign_id=str(campaignId),
         mobile_number=clean_msisdn,
         gateway_status=status,
+        normalized_status=norm_status_str,
         event_type=f"STATUS_{status}",
         raw_payload=f"campaignId={campaignId}&msisdn={msisdn}&status={status}",
         received_at=datetime.now(timezone.utc)
     )
     db.add(delivery_event)
 
-    # 2. Map status code to internal DeliveryStatus
-    new_delivery_status = None
-    status_desc = None
-    if status == 1:
-        new_delivery_status = DeliveryStatus.SUBMITTED
-        status_desc = "Successfully submitted to SMSC"
-    elif status == 2:
-        new_delivery_status = DeliveryStatus.FAILED
-        status_desc = "SMS submission failed (invalid number or connectivity failure)"
-    elif status == 3:
-        new_delivery_status = DeliveryStatus.DELIVERED
-        status_desc = "Successfully delivered to recipient"
-    elif status == 4:
-        new_delivery_status = DeliveryStatus.FAILED
-        status_desc = "SMS delivery failed"
-    else:
-        new_delivery_status = DeliveryStatus.PROCESSING
-        status_desc = f"Unknown status code: {status}"
-
-    # 3. Locate matching Campaign and CampaignRecipient
-    # Search by gateway_campaign_id or matching recipient phone
-    campaign_query = select(Campaign).where(Campaign.gateway_campaign_id == str(campaignId))
-    camp_res = await db.execute(campaign_query)
-    campaign = camp_res.scalars().first()
-
+    # 3. Locate matching CampaignRecipient
     recipient_record = None
     if campaign:
-        delivery_event.campaign_id = campaign.id
-        
-        # Look up recipient linked to this campaign by phone
         rec_query = (
             select(CampaignRecipient)
             .join(Contact, CampaignRecipient.contact_id == Contact.id)
@@ -303,14 +319,20 @@ async def esms_delivery_report_webhook(
                 )
             )
         )
+        if batch:
+            rec_query = rec_query.where(
+                (CampaignRecipient.batch_id == batch.id) | (CampaignRecipient.batch_id.is_(None))
+            )
         rec_res = await db.execute(rec_query)
         recipient_record = rec_res.scalars().first()
 
     if recipient_record:
         delivery_event.campaign_recipient_id = recipient_record.id
-        
-        # Idempotency and out-of-order check:
-        # If recipient is already marked DELIVERED (status 3), do not regress back to SUBMITTED (status 1)
+        if batch and not recipient_record.batch_id:
+            recipient_record.batch_id = batch.id
+
+        # Idempotency and out-of-order protection:
+        # If recipient is already DELIVERED (status 3), do NOT downgrade to SUBMITTED (status 1)
         if not (recipient_record.status == DeliveryStatus.DELIVERED and new_delivery_status == DeliveryStatus.SUBMITTED):
             recipient_record.status = new_delivery_status
             recipient_record.gateway_status_code = str(status)
@@ -344,9 +366,38 @@ async def esms_delivery_report_webhook(
                 sms_log.error_message = status_desc
             db.add(sms_log)
 
-    # 4. Recalculate campaign statistics if campaign exists
+    # 4. Recalculate Batch Statistics (if batch exists)
+    if batch:
+        b_stats_q = (
+            select(
+                CampaignRecipient.status,
+                func.count(CampaignRecipient.id)
+            )
+            .where(CampaignRecipient.batch_id == batch.id)
+            .group_by(CampaignRecipient.status)
+        )
+        b_stats_res = await db.execute(b_stats_q)
+        b_counts = dict(b_stats_res.all())
+
+        batch_del = b_counts.get(DeliveryStatus.DELIVERED, 0)
+        batch_fail = b_counts.get(DeliveryStatus.FAILED, 0)
+        batch_sub = b_counts.get(DeliveryStatus.SUBMITTED, 0) + b_counts.get(DeliveryStatus.ACCEPTED, 0)
+
+        batch.delivered_count = batch_del
+        batch.failed_count = batch_fail
+        batch.submitted_count = batch_sub
+
+        if batch_del + batch_fail >= batch.recipient_count and batch.recipient_count > 0:
+            batch.status = BatchStatus.COMPLETED if batch_fail == 0 else (BatchStatus.PARTIALLY_FAILED if batch_del > 0 else BatchStatus.FAILED)
+            batch.completed_at = datetime.now(timezone.utc)
+        elif batch_sub > 0 or batch_del > 0 or batch_fail > 0:
+            batch.status = BatchStatus.SUBMITTED
+
+        db.add(batch)
+
+    # 5. Recalculate Parent Campaign Statistics
     if campaign:
-        stats_query = (
+        c_stats_q = (
             select(
                 CampaignRecipient.status,
                 func.count(CampaignRecipient.id)
@@ -354,18 +405,20 @@ async def esms_delivery_report_webhook(
             .where(CampaignRecipient.campaign_id == campaign.id)
             .group_by(CampaignRecipient.status)
         )
-        stats_res = await db.execute(stats_query)
-        status_counts = dict(stats_res.all())
+        c_stats_res = await db.execute(c_stats_q)
+        c_counts = dict(c_stats_res.all())
 
-        delivered_c = status_counts.get(DeliveryStatus.DELIVERED, 0)
-        failed_c = status_counts.get(DeliveryStatus.FAILED, 0)
-        submitted_c = status_counts.get(DeliveryStatus.SUBMITTED, 0) + status_counts.get(DeliveryStatus.ACCEPTED, 0)
-        pending_c = campaign.recipient_count - (delivered_c + failed_c)
+        delivered_c = c_counts.get(DeliveryStatus.DELIVERED, 0)
+        failed_c = c_counts.get(DeliveryStatus.FAILED, 0)
+        submitted_c = c_counts.get(DeliveryStatus.SUBMITTED, 0) + c_counts.get(DeliveryStatus.ACCEPTED, 0)
+        pending_c = max(0, campaign.recipient_count - (delivered_c + failed_c))
 
         campaign.delivered_count = delivered_c
         campaign.failed_count = failed_c
-        campaign.pending_count = max(0, pending_c)
+        campaign.submitted_count = submitted_c
+        campaign.pending_count = pending_c
 
+        # Campaign is COMPLETED only when all recipients reach terminal states
         if delivered_c + failed_c >= campaign.recipient_count and campaign.recipient_count > 0:
             campaign.status = CampaignStatus.COMPLETED if failed_c == 0 else (CampaignStatus.PARTIALLY_FAILED if delivered_c > 0 else CampaignStatus.FAILED)
             campaign.completed_at = datetime.now(timezone.utc)
@@ -381,7 +434,7 @@ async def esms_delivery_report_webhook(
             sent_count=delivered_c + failed_c,
             delivered_count=delivered_c,
             failed_count=failed_c,
-            pending_count=max(0, pending_c),
+            pending_count=pending_c,
             status=campaign.status.value
         )
 
@@ -433,7 +486,7 @@ async def get_gateway_health(db: AsyncSession = Depends(get_db)):
             "activeGateway": active_gw,
             "isConfigured": esms_configured if active_gw == "ESMS" else bool(app_settings.api_key),
             "tokenActive": token_valid,
-            "defaultSenderId": getattr(settings, "ESMS_DEFAULT_MASK", None) or app_settings.default_sender_id or "CAFECHAI",
+            "defaultSenderId": getattr(settings, "ESMS_DEFAULT_MASK", None) or app_settings.default_sender_id or "UMG Lanka",
             "paymentMethod": getattr(settings, "ESMS_PAYMENT_METHOD", 0),
             "batchLimit": getattr(settings, "ESMS_BATCH_SIZE", 1000),
             "sendTpsLimit": getattr(settings, "ESMS_SEND_TPS_LIMIT", 20),
