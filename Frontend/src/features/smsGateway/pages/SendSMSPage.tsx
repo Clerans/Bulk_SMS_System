@@ -132,7 +132,7 @@ export function SendSMSPage() {
         routeId,
         scheduleType,
         scheduledAt: scheduleType === "SCHEDULED" ? `${scheduledDate}T${scheduledTime}` : undefined,
-        recipientSource: recipientTab === "GROUPS" ? "GROUPS" : "MANUAL",
+        recipientSource: recipientTab,
         groupIds: recipientTab === "GROUPS" ? selectedGroups : undefined,
         recipients: recipientTab === "GROUPS" ? undefined : recipients.map(r => ({ name: r.name || "Recipient", phone: r.phone })),
         templateId: selectedTemplateId || undefined,

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { format, parseISO } from "date-fns";
-import { ArrowLeft, CheckCircle2, XCircle, Users, Zap, RotateCcw, AlertCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, Users, Zap, RotateCcw, AlertCircle, Layers, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "../../../components/ui/PageHeader";
 import { Badge } from "../../../components/ui/Badge";
@@ -44,14 +44,13 @@ export function CampaignDetailsPage() {
       if (data.campaignId === campaignId) {
         setCampaign((prev) => {
           if (!prev) return prev;
-          const progress = data.progress || 0;
-          const status = progress >= 100 ? "ACCEPTED" : "PROCESSING";
-          const deliveredCount = Math.round((prev.recipientCount * progress) / 100);
           return {
             ...prev,
-            status,
-            deliveredCount,
-            failedCount: prev.recipientCount - prev.pendingCount - deliveredCount,
+            status: data.status || prev.status,
+            recipientCount: data.recipientCount ?? prev.recipientCount,
+            deliveredCount: data.deliveredCount ?? prev.deliveredCount,
+            failedCount: data.failedCount ?? prev.failedCount,
+            pendingCount: data.pendingCount ?? prev.pendingCount,
           };
         });
       }
@@ -121,7 +120,6 @@ export function CampaignDetailsPage() {
     );
   }
 
-
   const deliveryRate = campaign.recipientCount > 0
     ? (campaign.deliveredCount / campaign.recipientCount) * 100
     : 0;
@@ -132,7 +130,10 @@ export function CampaignDetailsPage() {
     if (!campaign) return;
     try {
       await campaignsService.retryFailed(campaign.id);
-      toast.success("Retry queued. Failed messages will be re-sent shortly.");
+      toast.success("Retry queued. Failed messages will be re-sent shortly with new transaction IDs.");
+      // Refresh campaign data
+      const updated = await campaignsService.getCampaign(campaign.id);
+      if (updated) setCampaign(updated);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to retry campaign.");
     }
@@ -142,7 +143,7 @@ export function CampaignDetailsPage() {
     <div>
       <button
         onClick={() => navigate("/campaigns")}
-        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
+        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors cursor-pointer"
       >
         <ArrowLeft className="w-4 h-4" />Back to Campaigns
       </button>
@@ -154,7 +155,7 @@ export function CampaignDetailsPage() {
           <div className="flex flex-wrap items-center gap-3 mt-1.5">
             <Badge status={campaign.status} map={CAMPAIGN_STATUS_MAP} />
             <span className="text-sm text-muted-foreground">
-              Sender: <span className="font-mono text-foreground">{campaign.senderId}</span>
+              Sender: <span className="font-mono text-foreground font-semibold">{campaign.senderId}</span>
             </span>
             {campaign.sentAt && (
               <span className="text-sm text-muted-foreground">
@@ -196,8 +197,8 @@ export function CampaignDetailsPage() {
         </div>
         <ProgressBar value={deliveryRate} />
         <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
-          <span className="text-green-500">{formatNumber(campaign.deliveredCount)} delivered</span>
-          <span className="text-destructive">{formatNumber(campaign.failedCount)} failed</span>
+          <span className="text-green-500 font-medium">{formatNumber(campaign.deliveredCount)} delivered</span>
+          <span className="text-destructive font-medium">{formatNumber(campaign.failedCount)} failed</span>
           {campaign.pendingCount > 0 && <span>{formatNumber(campaign.pendingCount)} pending</span>}
         </div>
       </Card>
@@ -208,6 +209,7 @@ export function CampaignDetailsPage() {
           <Tabs
             tabs={[
               { id: "overview", label: "Overview" },
+              { id: "batches",  label: "Batches", count: campaign.batches?.length || 0 },
               { id: "logs",     label: "Delivery Logs", count: logs.length },
             ]}
             active={tab}
@@ -220,7 +222,7 @@ export function CampaignDetailsPage() {
             <div className="grid sm:grid-cols-2 gap-6">
               <div>
                 <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wide">Message</p>
-                <p className="text-sm text-foreground bg-muted/40 rounded-lg p-3 whitespace-pre-wrap leading-relaxed">
+                <p className="text-sm text-foreground bg-muted/40 rounded-lg p-3 whitespace-pre-wrap leading-relaxed font-sans">
                   {campaign.message}
                 </p>
               </div>
@@ -232,6 +234,7 @@ export function CampaignDetailsPage() {
                   { label: "Cost (LKR)",    value: campaign.cost !== undefined ? `Rs. ${Number(campaign.cost).toFixed(2)}` : "—" },
                   { label: "Route",         value: campaign.route },
                   { label: "SMS Units",     value: formatNumber(campaign.smsUnits) },
+                  { label: "Batches",       value: String(campaign.batches?.length || 1) },
                   { label: "Created",       value: format(parseISO(campaign.createdAt), "MMM d, yyyy HH:mm") },
                   { label: "Sent At",       value: campaign.sentAt ? format(parseISO(campaign.sentAt), "MMM d, yyyy HH:mm") : "—" },
                   { label: "Scheduled",     value: campaign.scheduledAt ? format(parseISO(campaign.scheduledAt), "MMM d, yyyy HH:mm") : "—" },
@@ -246,9 +249,55 @@ export function CampaignDetailsPage() {
           </CardBody>
         )}
 
+        {tab === "batches" && (
+          !campaign.batches || campaign.batches.length === 0 ? (
+            <CardBody>
+              <EmptyState icon={Layers} title="No Batch Information" description="Batch records will be listed here once the campaign dispatches." />
+            </CardBody>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    {["Batch #", "Transaction ID", "Gateway Campaign ID", "Recipients", "Submitted", "Delivered", "Failed", "Status", "Cost (LKR)"].map((h) => (
+                      <th key={h} className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaign.batches.map((b) => (
+                    <tr key={b.id} className="border-b border-border last:border-0 hover:bg-muted/20">
+                      <td className="px-4 py-3 font-semibold text-foreground">Batch {b.batchNumber}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-foreground">{b.transactionId}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{b.gatewayCampaignId || "—"}</td>
+                      <td className="px-4 py-3 font-medium">{formatNumber(b.recipientCount)}</td>
+                      <td className="px-4 py-3 text-primary">{formatNumber(b.submittedCount)}</td>
+                      <td className="px-4 py-3 text-green-500">{formatNumber(b.deliveredCount)}</td>
+                      <td className="px-4 py-3 text-destructive">{formatNumber(b.failedCount)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                          b.status === "COMPLETED" || b.status === "DELIVERED" ? "bg-green-500/10 text-green-500" :
+                          b.status === "FAILED" ? "bg-destructive/10 text-destructive" :
+                          b.status === "SUBMITTED" || b.status === "PROCESSING" ? "bg-primary/10 text-primary" :
+                          "bg-muted text-muted-foreground"
+                        }`}>
+                          {b.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs">{b.cost > 0 ? `Rs. ${b.cost.toFixed(2)}` : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+
         {tab === "logs" && (
           logs.length === 0 ? (
-            <EmptyState icon={AlertCircle} title="No delivery logs" description="Delivery log records will appear here once the campaign is processed." />
+            <CardBody>
+              <EmptyState icon={AlertCircle} title="No delivery logs" description="Delivery log records will appear here once the campaign is processed." />
+            </CardBody>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -264,7 +313,7 @@ export function CampaignDetailsPage() {
                     <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/20">
                       <td className="px-4 py-3 font-mono text-xs text-foreground">{r.phone}</td>
                       <td className="px-4 py-3"><Badge status={r.status} map={DELIVERY_STATUS_MAP} /></td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">{format(parseISO(r.sentAt), "HH:mm:ss")}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{r.sentAt ? format(parseISO(r.sentAt), "HH:mm:ss") : "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{r.deliveredAt ? format(parseISO(r.deliveredAt), "HH:mm:ss") : "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{r.failureReason ?? "—"}</td>
                     </tr>
