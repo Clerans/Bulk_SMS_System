@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 from app.core.config import settings
 
 celery_app = Celery(
@@ -13,5 +14,15 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="Asia/Colombo",
     enable_utc=True,
-    imports=["app.workers.tasks"]
+    imports=["app.workers.tasks"],
+    beat_schedule={
+        "check-scheduled-campaigns-every-30s": {
+            "task": "check_scheduled_campaigns",
+            "schedule": 30.0,
+        },
+        "sync-esms-transactions-every-60s": {
+            "task": "sync_esms_transactions",
+            "schedule": 60.0,
+        },
+    }
 )
