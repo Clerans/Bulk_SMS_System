@@ -25,6 +25,9 @@ TestingSessionLocal = async_sessionmaker(
     autoflush=False
 )
 
+import app.workers.tasks
+app.workers.tasks.SessionLocal = TestingSessionLocal
+
 @pytest.fixture(scope="session")
 def event_loop() -> Generator:
     """
