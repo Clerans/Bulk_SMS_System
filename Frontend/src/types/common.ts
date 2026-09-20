@@ -69,6 +69,25 @@ export interface AuthState {
   isAuthenticated: boolean;
 }
 
+export interface CampaignBatch {
+  id: string;
+  batchNumber: number;
+  transactionId: number;
+  gatewayCampaignId?: string | null;
+  recipientCount: number;
+  acceptedCount: number;
+  submittedCount: number;
+  deliveredCount: number;
+  failedCount: number;
+  status: string;
+  cost: number;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdAt?: string | null;
+}
+
 export interface Campaign {
   id: string;
   name: string;
@@ -79,6 +98,7 @@ export interface Campaign {
   deliveredCount: number;
   failedCount: number;
   pendingCount: number;
+  submittedCount?: number;
   smsUnits: number;
   route: string;
   template?: string | null;
@@ -91,6 +111,7 @@ export interface Campaign {
   walletBalance?: number | null;
   messageIds?: string[];
   retryCount?: number;
+  batches?: CampaignBatch[];
   progress?: {
     percentage: number;
     sent: number;
@@ -255,6 +276,9 @@ export interface CreateCampaignRequest {
   routeId: string;
   scheduleType: "NOW" | "SCHEDULED";
   scheduledAt?: string;
+  groupIds?: string[];
+  recipients?: Array<{ name: string; phone: string }>;
+  templateId?: string;
 }
 
 export interface CampaignFilters {
