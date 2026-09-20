@@ -1,16 +1,20 @@
-# Enterprise SMS Campaign Management - Backend
+# Enterprise Bulk SMS Management System - Backend
 
-This is the enterprise-grade Python FastAPI backend designed for the **Bulk SMS Campaign Management** application. It implements repository/service architectural patterns, JWT access/refresh token authentications, and asynchronous background worker queues utilizing Celery and Redis.
+This is the production-ready Python FastAPI backend for the **Bulk SMS Campaign Management** platform, integrated with **Dialog eSMS API v3.2 (Adeona Technologies / Dialog Axiata PLC)**.
+
+It provides a multi-batch campaign architecture, monotonic unique 64-bit transaction generation, authoritative backend GSM-7/Unicode SMS segmentation, idempotent delivery report webhooks, Celery background workers + Celery Beat schedulers, and real-time WebSocket progress broadcasts.
 
 ---
 
 ## Technical Stack
 
-* **Web Framework**: FastAPI (Python 3.12+)
-* **Database**: PostgreSQL (SQLAlchemy 2.0 async ORM engine)
+* **Web Framework**: FastAPI (Python 3.12 / 3.13)
+* **Database**: PostgreSQL (SQLAlchemy 2.0 async ORM engine with asyncpg)
 * **Migrations**: Alembic
-* **Background Processing**: Celery (broker & backend powered by Redis)
-* **Authentication**: JWT Access/Refresh tokens + RBAC (Role-Based Access Control)
+* **Background Processing**: Celery & Celery Beat (broker & backend powered by Redis)
+* **SMS Gateway**: Dialog eSMS API v3.2 (POST `/api/v2/sms`, GET `/api/v1/sms/delivery-report`, POST `/api/v2/sms/check-transaction`)
+* **Real-time Engine**: Redis Pub/Sub WebSocket broadcasting (`campaign_progress`, `sms_status`, `dashboard_update`, `notification`)
+* **Authentication**: JWT Access & Refresh tokens + RBAC (Admin, Manager, Operator, Viewer)
 * **Validation**: Pydantic V2
 * **Rate Limiting**: SlowAPI
 
@@ -20,125 +24,157 @@ This is the enterprise-grade Python FastAPI backend designed for the **Bulk SMS 
 
 ```
 backend/
+├── alembic/                      # Alembic database migrations
+│   ├── versions/
+│   │   └── 001_create_campaign_batches.py
+│   └── env.py
 ├── app/
-│   ├── api/          # API Routers & endpoints
-│   ├── core/         # Config, database engine, logging, exception handlers
-│   ├── dependencies/ # FastAPI dependencies (Auth checkers, Rate Limiters)
-│   ├── middleware/   # Custom security headers & exception wrappers
-│   ├── models/       # SQLAlchemy 2.0 ORM models (User, Contact, Campaign, etc.)
-│   ├── repositories/ # Generic CRUD repositories (SOLID)
-│   ├── schemas/      # Pydantic V2 input/output data validators
-│   ├── services/     # Business logic & SMS Gateway strategy adapters
-│   ├── workers/      # Celery app config and asynchronous task dispatches
-│   └── main.py       # API router registration & entry point
-├── Dockerfile        # Container setup
-├── docker-compose.yml# Container orchestration
-├── requirements.txt  # Python requirements file
-├── .env.example      # Sample configurations template
-└── README.md         # This manual
+│   ├── api/                      # REST API routers & delivery webhooks
+│   │   ├── auth.py               # Authentication & token endpoints
+│   │   ├── campaigns.py          # Campaign management & batch queries
+│   │   ├── contacts.py           # Contact address book & CSV import
+│   │   ├── groups.py             # Recipient group definitions
+│   │   ├── templates.py          # SMS templates & variable tags
+│   │   ├── sms.py                # Single/bulk SMS & Dialog eSMS webhook
+│   │   ├── dashboard.py          # Aggregated dashboard metrics
+│   │   ├── reports.py            # Analytics & delivery reporting
+│   │   ├── settings.py           # SMS gateway configurations & balances
+│   │   └── audit_logs.py         # Compliance audit logs
+│   ├── core/                     # Configuration, database engine & errors
+│   │   ├── config.py             # Settings (Dialog eSMS credentials & limits)
+│   │   └── database.py           # Async SQLAlchemy engine & session maker
+│   ├── dependencies/             # FastAPI auth & RBAC dependencies
+│   ├── middleware/               # Security headers & exception wrappers
+│   ├── models/                   # SQLAlchemy 2.0 ORM models
+│   │   ├── campaign.py           # Campaign & CampaignRecipient models
+│   │   ├── campaign_batch.py     # CampaignBatch model (1,000 limit chunking)
+│   │   ├── delivery_event.py     # Gateway delivery events audit log
+│   │   ├── gateway_transaction.py# Gateway transaction journal
+│   │   └── ...
+│   ├── repositories/             # Clean CRUD data access layer
+│   ├── schemas/                  # Pydantic V2 schemas & validators
+│   ├── services/                 # Business logic & SMS gateway providers
+│   │   ├── sms_segment_service.py# Authoritative GSM-7 & Unicode segmentation
+│   │   ├── sms_provider.py       # Strict SMS provider factory
+│   │   └── providers/
+│   │       ├── esms_provider.py  # Dialog eSMS v3.2 Gateway Provider
+│   │       ├── notifylk_provider.py
+│   │       └── mobitel_provider.py
+│   ├── websocket/                # WebSocket managers & Redis Pub/Sub events
+│   ├── workers/                  # Celery background workers & schedulers
+│   │   ├── celery_app.py         # Celery & Celery Beat periodic schedules
+│   │   └── tasks.py              # Multi-batch processor & scheduled worker
+│   └── main.py                   # FastAPI application initialization
+├── tests/                        # Automated unit & integration tests
+├── .env.example                  # Environment configuration template
+├── alembic.ini                   # Alembic configuration
+├── docker-compose.yml            # Container orchestration
+└── requirements.txt              # Python requirements
 ```
 
 ---
 
-## Quick Start via Docker Compose (Recommended)
+## Dialog eSMS Gateway Architecture
 
-To run the entire ecosystem (FastAPI Server, Postgres DB, Redis broker, and Celery Worker) inside containers:
+### 1. Multi-Batch Processing (`CampaignBatch`)
+* Dialog eSMS API allows up to **1,000 recipients per HTTP POST** request (`ESMS_BATCH_SIZE=1000`).
+* Campaigns with > 1,000 recipients are automatically partitioned into ordered batches:
+  * Batch 1: 1,000 recipients
+  * Batch 2: 1,000 recipients
+  * Batch 3: remaining recipients
+* Each batch is dispatched independently, linked to the parent `Campaign`, and assigned a unique 64-bit `transaction_id`.
 
-1. **Copy environmental configurations**:
-   ```bash
-   cp .env.example .env
-   ```
-2. **Build and start services**:
-   ```bash
-   docker-compose up --build
-   ```
-3. **Verify API health**:
-   Navigate to `http://localhost:8000/health`. You should receive a healthy status response.
-4. **Access interactive documentation**:
-   Navigate to `http://localhost:8000/api/v1/docs` or `http://localhost:8000/api/docs` to access the Swagger open API docs.
+### 2. Transaction ID Generation (Dialog Error 104 Prevention)
+* Dialog eSMS enforces unique numeric transaction IDs (1 to 18 digits) and rejects duplicates with error code `104`.
+* `DialogESMSProvider.generate_unique_transaction_id()` generates monotonically increasing 64-bit numeric IDs using epoch milliseconds, worker salt, and atomic sequence counters.
+* On transient network retries (timeouts, 117 rate limits), a **new transaction ID** is generated for the retry attempt.
+
+### 3. Server-Side Token Lifecycle
+* Dialog eSMS JWT tokens are acquired via `POST /api/v2/user/login`.
+* Tokens are cached server-side for **12 hours (43,200 seconds)** with asynchronous mutex locking.
+* Tokens are automatically renewed upon expiry or refreshed if error `100` (invalid/expired token) is encountered.
+* Gateway credentials and tokens are **never exposed to the frontend client**.
+
+### 4. Authoritative Backend SMS Segmentation
+* **GSM-7**:
+  * 1 Segment: 1 to 160 characters
+  * Multipart: 153 characters per segment (7 characters reserved for UDH header)
+  * GSM-7 Extensions (`\`, `^`, `{`, `}`, `[`, `]`, `~`, `|`, `€`): Counted as 2 characters.
+* **Unicode / UCS-2 (Sinhala, Tamil, Emojis)**:
+  * 1 Segment: 1 to 70 characters
+  * Multipart: 67 characters per segment (3 characters reserved for UDH header)
+* Required SMS credits are calculated authoritatively by the backend (`recipients * segments`) and reserved atomically before dispatch.
+
+### 5. Delivery Report Webhook Processing (`GET /api/v1/sms/delivery-report`)
+Dialog eSMS pushes real-time delivery reports to the configured webhook endpoint:
+* Query parameters: `campaignId=<id>&msisdn=<number>&status=<code>`
+  * `status=1`: Successfully submitted to SMSC (`SUBMITTED`)
+  * `status=2`: SMS submission failed (`FAILED`)
+  * `status=3`: Successfully delivered to handset (`DELIVERED`)
+  * `status=4`: Delivery failed (`FAILED`)
+* **Idempotency & Out-of-Order Safety**: If status `3` (`DELIVERED`) is received before status `1` (`SUBMITTED`), the status is preserved as `DELIVERED` and never regressed.
+* Automatically recalculates `CampaignBatch` and parent `Campaign` counters in real time.
 
 ---
 
-## Local Setup (Manual Running)
+## Dialog eSMS Environment Variables
 
-If you prefer to run the application components locally outside of Docker containers:
+Configure the following in `backend/.env`:
 
-### 1. Prerequisites
-- Python 3.12+ installed
-- Redis server running on `localhost:6379`
-- PostgreSQL database created and running on `localhost:5432`
+```ini
+# Gateway Selection (Strict, no silent fallback)
+SMS_GATEWAY=ESMS
 
-### 2. Setup Virtual Environment
-Create and activate a python virtual environment inside the `backend` folder:
-```bash
-python -m venv venv
+# Dialog eSMS v3.2 Credentials & Endpoints
+ESMS_USERNAME=your_esms_username
+ESMS_PASSWORD=your_esms_password
+ESMS_BASE_URL=https://e-sms.dialog.lk
+ESMS_AUTH_URL=https://esms.dialog.lk
+ESMS_DEFAULT_MASK=CAFECHAI
+ESMS_PAYMENT_METHOD=0
+ESMS_DELIVERY_REPORT_URL=https://your-domain.com/api/v1/sms/delivery-report
+ESMS_TIMEOUT_SECONDS=30
+ESMS_BATCH_SIZE=1000
+ESMS_SEND_TPS=20
+ESMS_TOKEN_CACHE_HOURS=12
 
-# On Windows:
-venv\Scripts\activate
-
-# On macOS/Linux:
-source venv/bin/activate
+# Database & Celery
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/bulk_sms_db
+REDIS_URL=redis://localhost:6379/0
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
 ```
 
-### 3. Install Dependencies
+---
+
+## Running the Application
+
+### 1. Database Migrations
 ```bash
-pip install -r requirements.txt
+alembic upgrade head
 ```
 
-### 4. Configuration
-Create a `.env` file (copied from `.env.example`) and adjust values (e.g. `DATABASE_URL`, `REDIS_URL`) to map your local database credentials.
-
-### 5. Create Tables & Seed Mock Data
-To initialize schemas and seed defaults (Super Admin: `superadmin@bulksms.lk` / `admin123`):
-```bash
-python -m app.database.seed
-```
-
-### 6. Start the API Server
+### 2. Start FastAPI Server
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 7. Run Celery Background Worker
-Open a separate terminal window, activate the virtual environment, and run:
+### 3. Start Celery Worker
 ```bash
-celery -A app.workers.celery_app.celery_app worker --loglevel=info
+celery -A app.workers.celery_app.celery_app worker --loglevel=info -P solo
+```
+
+### 4. Start Celery Beat (Scheduled Campaigns & Status Reconciliation)
+```bash
+celery -A app.workers.celery_app.celery_app beat --loglevel=info
 ```
 
 ---
 
-## Core System Architectures
+## Running Automated Tests
 
-### 1. Consistent Response Envelope
-Every endpoint returns a unified JSON payload shape:
-* **Success Envelope**:
-  ```json
-  {
-    "success": true,
-    "message": "Operation completed successfully",
-    "data": { ... },
-    "errors": null
-  }
-  ```
-* **Error Envelope (Validation / Auth / Exception)**:
-  ```json
-  {
-    "success": false,
-    "message": "Validation failed",
-    "data": null,
-    "errors": [
-      { "field": "email", "message": "value is not a valid email address" }
-    ]
-  }
-  ```
+Run the full pytest suite covering authentication, phone normalization, transaction ID generation, multi-batch splitting, Celery schedulers, webhook delivery reports, and segmentation:
 
-### 2. Role-Based Access Control (RBAC)
-Four permission hierarchies are enforced via endpoint decorators:
-* `ADMIN`: Access to user creations, user deletions, database configurations, logs exports.
-* `MANAGER`: Full access to campaigns, contacts, groups, app settings updates.
-* `OPERATOR`: Access to campaign triggering, template modifications, contact uploads.
-* `VIEWER`: Read-only access to summaries, lists, logs history, and charts.
-
-### 3. Asynchronous Campaigns Pipeline
-* Immediate Campaigns dispatches accept input, resolve target lists, and instantly return a `202 Accepted` status to keep user interface responsive.
-* Celery workers retrieve jobs, perform variable template parses (resolving variables like `{name}` for each subscriber), contact status validations, credit deductions, and write delivery logs back to database in real-time.
+```bash
+python -m pytest tests/ -v
+```
