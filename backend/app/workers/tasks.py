@@ -458,7 +458,7 @@ async def run_process_campaign(campaign_id: str) -> None:
             campaign.completed_at = datetime.now(timezone.utc)
         elif c_sub > 0:
             # Batches are accepted by gateway SMSC, awaiting delivery report webhook callbacks
-            campaign.status = CampaignStatus.SUBMITTED
+            campaign.status = CampaignStatus.ACCEPTED
         else:
             campaign.status = CampaignStatus.FAILED
 
@@ -477,7 +477,7 @@ async def run_process_campaign(campaign_id: str) -> None:
             status=campaign.status.value
         )
 
-        if campaign.status in (CampaignStatus.SUBMITTED, CampaignStatus.ACCEPTED, CampaignStatus.COMPLETED):
+        if campaign.status in (CampaignStatus.ACCEPTED, CampaignStatus.COMPLETED):
             broadcast_notification(f"Campaign '{campaign.name}' batches submitted successfully to Dialog eSMS.", "success")
         elif campaign.status == CampaignStatus.PARTIALLY_FAILED:
             broadcast_notification(f"Campaign '{campaign.name}' processed with partial failures.", "warning")

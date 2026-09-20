@@ -126,9 +126,9 @@ async def test_campaign_batch_splitting(db_session):
     tx_ids = {b.transaction_id for b in batches}
     assert len(tx_ids) == 3
 
-    # Verify campaign status is SUBMITTED (awaiting webhook delivery reports)
+    # Verify campaign status is ACCEPTED (awaiting webhook delivery reports)
     await db_session.refresh(campaign)
-    assert campaign.status == CampaignStatus.SUBMITTED
+    assert campaign.status == CampaignStatus.ACCEPTED
     assert campaign.submitted_count == 25
 
 
