@@ -9,6 +9,7 @@ import uuid
 import httpx
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.models.campaign import Campaign, CampaignRecipient, CampaignStatus, DeliveryStatus
 from app.models.campaign_batch import CampaignBatch, BatchStatus
 from app.models.contact import Contact
@@ -23,7 +24,7 @@ from app.services.providers.esms_provider import DialogESMSProvider
 @pytest.mark.asyncio
 async def test_campaign_batch_splitting(db_session):
     """
-    Verify that a campaign with 2,500 recipients is split into 3 batches (1000, 1000, 500)
+    Verify that a campaign is split into multiple batches (e.g. chunks of size 10 -> 10, 10, 5)
     with unique transaction IDs and linked to the parent Campaign.
     """
     # 1. Setup App Settings with plenty of credits
@@ -32,22 +33,22 @@ async def test_campaign_batch_splitting(db_session):
     db_session.add(app_settings)
     await db_session.commit()
 
-    # 2. Create Campaign with 2500 recipients
+    # 2. Create Campaign with 25 recipients
     campaign = Campaign(
-        name="Big Bulk Campaign",
+        name="Batch Splitting Test Campaign",
         sender_id="UMG Lanka",
         message="Seasonal Special Offer",
         status=CampaignStatus.QUEUED,
-        recipient_count=2500,
-        pending_count=2500,
-        sms_units=2500
+        recipient_count=25,
+        pending_count=25,
+        sms_units=25
     )
     db_session.add(campaign)
     await db_session.commit()
     await db_session.refresh(campaign)
 
-    # Add 2500 contacts and recipients
-    for i in range(2500):
+    # Add 25 contacts and recipients
+    for i in range(25):
         c = Contact(
             first_name=f"User{i}",
             last_name="Test",
@@ -68,31 +69,32 @@ async def test_campaign_batch_splitting(db_session):
 
     await db_session.commit()
 
-    # 3. Mock Dialog eSMS HTTP POST calls
+    # 3. Mock Dialog eSMS HTTP POST calls with batch_size=10
     mock_responses = [
-        {"status": "success", "comment": "Batch 1 accepted", "data": {"campaignId": 101, "campaignCost": 1000}},
-        {"status": "success", "comment": "Batch 2 accepted", "data": {"campaignId": 102, "campaignCost": 1000}},
-        {"status": "success", "comment": "Batch 3 accepted", "data": {"campaignId": 103, "campaignCost": 500}},
+        {"status": "success", "comment": "Batch 1 accepted", "data": {"campaignId": 101, "campaignCost": 10.0}},
+        {"status": "success", "comment": "Batch 2 accepted", "data": {"campaignId": 102, "campaignCost": 10.0}},
+        {"status": "success", "comment": "Batch 3 accepted", "data": {"campaignId": 103, "campaignCost": 5.0}},
     ]
 
-    with patch.object(DialogESMSProvider, "_execute_post_sms", new_callable=AsyncMock) as mock_post:
+    with patch.object(settings, "ESMS_BATCH_SIZE", 10), \
+         patch.object(DialogESMSProvider, "_execute_post_sms", new_callable=AsyncMock) as mock_post:
         mock_post.side_effect = [
             {
                 "status": DeliveryStatus.ACCEPTED,
                 "gateway_campaign_id": "101",
-                "campaign_cost": 1000.0,
+                "campaign_cost": 10.0,
                 "raw_response": mock_responses[0]
             },
             {
                 "status": DeliveryStatus.ACCEPTED,
                 "gateway_campaign_id": "102",
-                "campaign_cost": 1000.0,
+                "campaign_cost": 10.0,
                 "raw_response": mock_responses[1]
             },
             {
                 "status": DeliveryStatus.ACCEPTED,
                 "gateway_campaign_id": "103",
-                "campaign_cost": 500.0,
+                "campaign_cost": 5.0,
                 "raw_response": mock_responses[2]
             }
         ]
@@ -106,17 +108,17 @@ async def test_campaign_batch_splitting(db_session):
 
     assert len(batches) == 3
     assert batches[0].batch_number == 1
-    assert batches[0].recipient_count == 1000
+    assert batches[0].recipient_count == 10
     assert batches[0].gateway_campaign_id == "101"
     assert batches[0].status == BatchStatus.SUBMITTED
 
     assert batches[1].batch_number == 2
-    assert batches[1].recipient_count == 1000
+    assert batches[1].recipient_count == 10
     assert batches[1].gateway_campaign_id == "102"
     assert batches[1].status == BatchStatus.SUBMITTED
 
     assert batches[2].batch_number == 3
-    assert batches[2].recipient_count == 500
+    assert batches[2].recipient_count == 5
     assert batches[2].gateway_campaign_id == "103"
     assert batches[2].status == BatchStatus.SUBMITTED
 
@@ -127,7 +129,7 @@ async def test_campaign_batch_splitting(db_session):
     # Verify campaign status is SUBMITTED (awaiting webhook delivery reports)
     await db_session.refresh(campaign)
     assert campaign.status == CampaignStatus.SUBMITTED
-    assert campaign.submitted_count == 2500
+    assert campaign.submitted_count == 25
 
 
 @pytest.mark.asyncio
