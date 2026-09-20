@@ -158,5 +158,5 @@ class CampaignRecipient(Base):
 
     # Relationships
     campaign = relationship("Campaign", back_populates="recipients")
-    batch = relationship("CampaignBatch", back_populates="recipients")
-    contact = relationship("Contact")
+    batch = relationship("CampaignBatch", back_populates="recipients", lazy="joined")
+    contact = relationship("Contact", lazy="joined")

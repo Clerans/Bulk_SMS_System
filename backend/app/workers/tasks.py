@@ -6,7 +6,7 @@ import time
 import uuid
 from typing import List, Optional
 from sqlalchemy import select, update, func
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from loguru import logger
 
 from app.core.config import settings
@@ -74,7 +74,7 @@ async def run_process_campaign(campaign_id: str) -> None:
             select(Campaign)
             .where(Campaign.id == uuid.UUID(campaign_id))
             .options(
-                selectinload(Campaign.recipients).selectinload(CampaignRecipient.contact),
+                selectinload(Campaign.recipients).joinedload(CampaignRecipient.contact),
                 selectinload(Campaign.batches)
             )
         )
